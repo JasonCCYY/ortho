@@ -378,21 +378,17 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
   letter-spacing: -.01em;
 }
 
-/* ── 診號 App styles ── */
-.card{background:var(--surface);border-radius:var(--r);padding:14px 16px;border:1px solid var(--border)}
-.card-title{display:flex;align-items:center;gap:7px;font-size:.95rem;font-weight:700;color:var(--txt);margin-bottom:12px}
-.appt-table{width:100%;border-collapse:collapse;font-size:.88rem}
-.appt-table th{text-align:left;padding:6px 8px;color:var(--muted);font-weight:700;font-size:.78rem;text-transform:uppercase;border-bottom:2px solid var(--border)}
-.appt-table td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
-.appt-table tr:last-child td{border-bottom:none}
-.session-tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.78rem;font-weight:600}
-.session-tag.am{background:#dbeafe;color:#1e40af}
-.session-tag.pm{background:#fef3c7;color:#92400e}
-.session-tag.eve{background:#ede9fe;color:#5b21b6}
-.appt-num{text-align:right;font-weight:700;font-size:1rem}
-.appt-num.hi{color:#16a34a}
-.appt-num.mid{color:#d97706}
-.appt-num.lo{color:var(--muted)}
-.note{font-size:.78rem;color:var(--muted);margin-top:10px;text-align:right}
-.note a{color:var(--accent)}
-.loading{text-align:center;padding:24px;color:var(--muted);font-size:.9rem}
+/* ── 診號 App ── */
+.back-btn{display:flex;align-items:center;gap:5px;height:36px;padding:0 12px;border:none;background:var(--elevated);border-radius:var(--r-sm);color:var(--txt2);font-size:.84rem;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.back-btn:active{background:var(--acc-lt);color:var(--accent)}
+.clinic-section{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.clinic-section-hdr{display:flex;align-items:center;gap:7px;padding:13px 16px 10px;font-size:.97rem;font-weight:700;color:var(--txt);border-bottom:1px solid var(--border)}
+.clinic-col-hdr{position:relative;top:0;z-index:1;background:var(--bg);border-bottom:2px solid var(--border);height:34px}
+.clinic-note{padding:8px 16px 10px;font-size:.78rem;color:var(--muted);text-align:right;border-top:1px solid var(--border)}
+.s-tag{display:inline-block;padding:2px 7px;border-radius:20px;font-size:.75rem;font-weight:600;white-space:nowrap}
+.s-tag-am{background:#dbeafe;color:#1e40af}
+.s-tag-pm{background:#fef3c7;color:#92400e}
+.s-tag-eve{background:#ede9fe;color:#5b21b6}
+.num-hi{color:var(--green)}
+.num-mid{color:#d97706}
+.num-lo{color:var(--muted)}
