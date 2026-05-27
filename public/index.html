@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ortho">
+<meta name="theme-color" content="#1a7fd4">
+<title>Ortho Record</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="loading-ov" id="loading"><div class="spinner"></div><div style="color:var(--muted);font-size:.95rem">Ortho Record</div></div>
+
+<div id="auth-screen">
+  <div class="auth-logo" style="padding:0;overflow:hidden;border:none;box-shadow:none;background:transparent"><img src="icons/icon-192.png" style="width:96px;height:96px;border-radius:22px;display:block"></div>
+  <div class="auth-title">Ortho Record</div>
+  <div class="auth-sub">骨科手術紀錄管理系統<br>請使用 Google 帳號登入</div>
+  <button class="btn-google" onclick="AUTH.signIn()">
+    <img src="https://www.google.com/favicon.ico" alt="">使用 Google 帳號登入
+  </button>
+</div>
+
+<div id="desktop-layout"><div id="app" style="display:none">
+
+  <div id="header">
+    <button onclick="window.location.href='/clinic/'" title="診號查詢" style="display:flex;align-items:center;gap:5px;height:34px;padding:0 12px;border:none;background:#e4ecf4;border-radius:8px;color:var(--txt2);font-size:.84rem;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      診號
+    </button>
+    <div class="hdr-actions">
+      <button class="hdr-btn" onclick="APP.refresh()" title="重新整理">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+      <button class="hdr-btn" onclick="APP.openSearch()" title="搜尋">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <button class="hdr-btn" onclick="AUTH.signOut()" title="登出">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+
+  <!-- Surgery sub-tabs -->
+  <div class="sub-tabs" id="sub-sx" style="display:none">
+    <button class="sub-tab active" data-sub="sxList">手術紀錄</button>
+    <button class="sub-tab" data-sub="track">追蹤</button>
+  </div>
+
+  <!-- Material sub-tabs -->
+  <div class="sub-tabs" id="sub-mat" style="display:none">
+    <button class="sub-tab active" data-sub="matRec">醫材記錄</button>
+    <button class="sub-tab" data-sub="selfPay">自費醫材</button>
+    <button class="sub-tab" data-sub="opCode">代碼</button>
+    <button class="sub-tab" data-sub="codeRec">代碼紀錄</button>
+    <button class="sub-tab" data-sub="estimate">預估</button>
+  </div>
+
+  <div id="content">
+    <div id="tab-swipe-container">
+    <div id="tab-swipe-inner">
+
+    <!-- Material Page — swipeable slides -->
+    <div id="pg-material" class="page">
+      <div id="mat-swipe-container">
+        <div id="mat-swipe-inner">
+
+          <!-- Slide 0: 醫材記錄 -->
+          <div class="mat-slide" id="pg-mat-rec">
+            <div class="list-content">
+              <div class="col-hdr-row">
+                <span class="dot-ph"></span>
+                <span class="th col-brand">廠牌</span>
+                <span class="th col-product">產品</span>
+                <span class="th col-qty" style="text-align:center">數量</span>
+                <span class="th col-price" style="text-align:right">單價</span>
+                <span style="width:32px;flex-shrink:0"></span>
+              </div>
+              <div id="mat-rec-list"></div>
+            </div>
+          </div>
+
+          <!-- Slide 1: 自費醫材 -->
+          <div class="mat-slide" id="pg-selfpay">
+            <div class="list-content">
+              <div class="col-hdr-row">
+                <span class="th col-brand">廠牌</span>
+                <span class="th col-product">產品</span>
+                <span style="width:32px;flex-shrink:0"></span>
+                <span class="th col-price" style="text-align:right">單價</span>
+                <span class="th col-hosp" style="text-align:right">醫院</span>
+              </div>
+              <div id="selfpay-list"></div>
+            </div>
+          </div>
+
+          <!-- Slide 2: 代碼 -->
+          <div class="mat-slide" id="pg-opcode">
+            <div class="list-content">
+              <div class="col-hdr-row">
+                <span class="th col-code">代碼</span>
+                <span class="th col-product">術式</span>
+                <span style="width:32px;flex-shrink:0"></span>
+                <span class="th col-price" style="text-align:right">單價</span>
+              </div>
+              <div id="opcode-list"></div>
+            </div>
+          </div>
+
+          <!-- Slide 3: 代碼紀錄 -->
+          <div class="mat-slide" id="pg-code-rec">
+            <div class="list-content">
+              <div class="col-hdr-row">
+                <span class="dot-ph"></span>
+                <span class="th col-product">術式</span>
+                <span class="th col-code">代碼</span>
+                <span class="th col-price" style="text-align:right">單價</span>
+                <span class="th col-qty" style="text-align:center">量</span>
+                <span class="th col-area" style="text-align:right">院區</span>
+              </div>
+              <div id="code-rec-list"></div>
+            </div>
+          </div>
+
+          <!-- Slide 4: 預估 -->
+          <div class="mat-slide" id="pg-estimate">
+            <div class="est-table-wrap">
+              <table class="est-table">
+                <thead id="est-thead"><tr><th>項目</th></tr></thead>
+                <tbody id="est-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /mat-swipe-inner -->
+      </div><!-- /mat-swipe-container -->
+    </div><!-- /pg-material -->
+
+
+    <!-- Surgery Page -->
+    <div id="pg-surgery" class="page">
+      <div class="sub-page" id="pg-sx-list">
+        <div class="sx-wrap">
+          <table class="sx-table">
+            <thead><tr>
+              <th>日期</th><th class="th-name">姓名</th><th>類型</th>
+              <th>名稱</th><th>部位</th><th>骨材</th><th>備註</th>
+            </tr></thead>
+            <tbody id="sx-list-body"><tr><td colspan="8" class="load-msg">載入中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="sub-page" id="pg-track" style="display:none">
+        <div class="sx-wrap">
+          <table class="sx-table">
+            <thead><tr>
+              <th>日期</th><th class="th-name">姓名</th><th>類型</th>
+              <th>名稱</th><th>部位</th><th>骨材</th><th>備註</th>
+            </tr></thead>
+            <tbody id="track-list-body"><tr><td colspan="8" class="load-msg">載入中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Clinic Page -->
+    <div id="pg-clinic" class="page">
+      <div class="list-content" id="clinic-content"></div>
+    </div>
+
+        </div><!-- /tab-swipe-inner -->
+    </div><!-- /tab-swipe-container -->
+  </div><!-- /content -->
+
+  <div id="bottom-tabs">
+    <button class="tab-btn" data-tab="material">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="2" width="6" height="3" rx="1"/><path d="M16 2h2a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h2"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="18" x2="12" y2="18"/></svg>醫材
+    </button>
+    <button class="tab-btn active" data-tab="surgery">
+      <img src="data:image/png;base64,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" style="width:24px;height:24px;object-fit:contain">手術紀錄
+    </button>
+    <button class="tab-btn" data-tab="clinic">
+      <img src="data:image/png;base64,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" style="width:24px;height:24px;object-fit:contain">門診
+    </button>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Desktop info panel (hidden on mobile/tablet via CSS) -->
+
+
+</div><!-- /desktop-layout -->
+
+<button class="fab" id="fab" style="display:flex">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+<div class="toast" id="toast"></div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-bd" id="modal-detail" onclick="if(event.target===this)APP.closeModal('modal-detail')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="detail-title">詳情</div>
+  <div id="detail-body"></div>
+  <div class="detail-actions">
+    <button class="btn-del" onclick="APP.deleteDetail()">🗑 刪除</button>
+    <button class="btn-cancel" onclick="APP.closeModal('modal-detail')">關閉</button>
+    <button class="btn-save" id="detail-edit-btn" onclick="APP.openEdit()">✏️ 修改</button>
+  </div>
+</div>
+</div>
+
+<!-- EDIT MODALS -->
+<div class="modal-bd" id="modal-edit-sx" onclick="if(event.target===this)APP.closeModal('modal-edit-sx')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改手術紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="es-date"></div>
+  <div class="fg">
+    <label class="fg-label">院區</label><input type="hidden" id="es-area-val" value="中正">
+    <div class="chip-row"><button class="chip area on" id="es-area-zz" onclick="APP.editSelectArea(this,'中正','es')">中正</button><button class="chip area" id="es-area-yc" onclick="APP.editSelectArea(this,'右昌','es')">右昌</button></div>
+  </div>
+  <div class="fg"><label class="fg-label">病歷號</label><input class="f-input" type="text" id="es-mrn" inputmode="numeric" placeholder="選填"></div>
+  <div class="fg" id="es-clinicid-wrap" style="display:none"><label class="fg-label">診所 ID</label><input class="f-input" type="text" id="es-clinicid" inputmode="numeric" placeholder="右昌診所ID"></div>
+  <div class="fg"><label class="fg-label">病患姓名</label><input class="f-input" type="text" id="es-name" placeholder="輸入姓名"></div>
+  <div class="fg">
+    <label class="fg-label">類型</label><input type="hidden" id="es-type-val" value="Joint">
+    <div class="chip-row wrap" id="es-type-chips">
+      <button class="chip" onclick="APP.editSelectType(this,'Joint','es')">Joint</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Sports','es')">Sports</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Trauma','es')">Trauma</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Spine','es')">Spine</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Tumor','es')">Tumor</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Hand','es')">Hand</button>
+      <button class="chip" onclick="APP.editSelectType(this,'ROI','es')">ROI</button>
+    </div>
+  </div>
+  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="es-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="es-loc" placeholder="如 Rt、Lt、L4-5"></div>
+  <div class="fg">
+    <label class="fg-label">骨材</label><input type="hidden" id="es-bone-val">
+    <div class="bone-grid" id="es-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
+  </div>
+  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="es-note" placeholder="選填"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-sx')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-track" onclick="if(event.target===this)APP.closeModal('modal-edit-track')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改追蹤紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="et-date"></div>
+  <div class="fg">
+    <label class="fg-label">院區</label><input type="hidden" id="et-area-val" value="中正">
+    <div class="chip-row"><button class="chip area on" id="et-area-zz" onclick="APP.editSelectArea(this,'中正','et')">中正</button><button class="chip area" id="et-area-yc" onclick="APP.editSelectArea(this,'右昌','et')">右昌</button><button class="chip area" id="et-area-cl" onclick="APP.editSelectArea(this,'診所','et')">診所</button></div>
+  </div>
+  <div class="fg"><label class="fg-label">病歷號</label><input class="f-input" type="text" id="et-mrn" inputmode="numeric" placeholder="選填"></div>
+  <div class="fg" id="et-clinicid-wrap" style="display:none"><label class="fg-label">診所 ID</label><input class="f-input" type="text" id="et-clinicid" inputmode="numeric" placeholder="診所ID"></div>
+  <div class="fg"><label class="fg-label">病患姓名</label><input class="f-input" type="text" id="et-name" placeholder="輸入姓名"></div>
+  <div class="fg">
+    <label class="fg-label">類型</label><input type="hidden" id="et-type-val" value="">
+    <div class="chip-row wrap" id="et-type-chips">
+      <button class="chip" onclick="APP.editSelectType(this,'Joint','et')">Joint</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Sports','et')">Sports</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Trauma','et')">Trauma</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Spine','et')">Spine</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Tumor','et')">Tumor</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Hand','et')">Hand</button>
+      <button class="chip" onclick="APP.editSelectType(this,'ROI','et')">ROI</button>
+    </div>
+  </div>
+  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="et-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="et-loc" placeholder="如 Rt、Lt、L4-5"></div>
+  <div class="fg">
+    <label class="fg-label">骨材</label><input type="hidden" id="et-bone-val">
+    <div class="bone-grid" id="et-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
+  </div>
+  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="et-note" placeholder="選填"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-track')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-mat" onclick="if(event.target===this)APP.closeModal('modal-edit-mat')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改骨材記錄</div>
+  <div class="fg"><label class="fg-label">廠牌</label><input class="f-input" type="text" id="em-brand"></div>
+  <div class="fg"><label class="fg-label">產品</label><input class="f-input" type="text" id="em-product"></div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="text" id="em-date"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="em-price"></div>
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="em-qty" min="1"></div>
+  </div>
+  <div class="fg">
+    <label class="fg-label">Done</label>
+    <input type="hidden" id="em-done-val" value="false">
+    <div class="chip-row">
+      <button class="chip on" id="em-done-n" onclick="APP.toggleDone('false')">N 未完成</button>
+      <button class="chip" id="em-done-y" onclick="APP.toggleDone('true')">Y 已完成</button>
+    </div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-mat')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-selfpay" onclick="if(event.target===this)APP.closeModal('modal-edit-selfpay')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改自費醫材</div>
+  <div class="fg"><label class="fg-label">廠牌</label><input class="f-input" type="text" id="esp-brand"></div>
+  <div class="fg"><label class="fg-label">產品</label><input class="f-input" type="text" id="esp-product"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="esp-price"></div>
+    <div class="fg"><label class="fg-label">醫院</label><input class="f-input" type="text" id="esp-hosp"></div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-selfpay')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-opcode" onclick="if(event.target===this)APP.closeModal('modal-edit-opcode')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改 OP 代碼</div>
+  <div class="fg"><label class="fg-label">代碼</label><input class="f-input" type="text" id="eoc-code"></div>
+  <div class="fg"><label class="fg-label">術式</label><input class="f-input" type="text" id="eoc-name"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="eoc-price"></div>
+    <div class="fg"><label class="fg-label">院區</label><input class="f-input" type="text" id="eoc-area"></div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-opcode')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-coderec" onclick="if(event.target===this)APP.closeModal('modal-edit-coderec')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改代碼紀錄</div>
+  <div class="fg"><label class="fg-label">術式</label><input class="f-input" type="text" id="ecr-name"></div>
+  <div class="fg"><label class="fg-label">代碼</label><input class="f-input" type="text" id="ecr-code"></div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="text" id="ecr-date"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="ecr-price"></div>
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="ecr-qty" min="1"></div>
+  </div>
+  <div class="fg"><label class="fg-label">院區</label><input class="f-input" type="text" id="ecr-area"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-coderec')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-edit-clinic" onclick="if(event.target===this)APP.closeModal('modal-edit-clinic')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">修改門診記錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="text" id="ecl-date"></div>
+  <div class="fg"><label class="fg-label">產品</label><input class="f-input" type="text" id="ecl-product"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="ecl-price"></div>
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="ecl-qty" min="1"></div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-clinic')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
+</div></div>
+
+<!-- NEW RECORD MODALS -->
+<div class="modal-bd" id="modal-op" onclick="if(event.target===this)APP.closeModal('modal-op')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">新增手術紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="s-date"></div>
+  <div class="fg">
+    <label class="fg-label">院區</label><input type="hidden" id="s-area-val" value="中正">
+    <div class="chip-row"><button class="chip area on" onclick="APP.selectArea(this,'中正')">中正</button><button class="chip area" onclick="APP.selectArea(this,'右昌')">右昌</button></div>
+  </div>
+  <div class="fg"><label class="fg-label">病歷號</label><input class="f-input" type="text" id="s-mrn" inputmode="numeric" placeholder="選填"></div>
+  <div class="fg" id="s-clinicid-wrap" style="display:none"><label class="fg-label">診所 ID</label><input class="f-input" type="text" id="s-clinicid" inputmode="numeric" placeholder="右昌診所ID"></div>
+  <div class="fg"><label class="fg-label">病患姓名</label><input class="f-input" type="text" id="s-name" placeholder="輸入姓名"></div>
+  <div class="fg">
+    <label class="fg-label">類型</label><input type="hidden" id="s-type-val" value="Joint">
+    <div class="chip-row wrap">
+      <button class="chip on" onclick="APP.selectType(this,'Joint')">Joint</button>
+      <button class="chip" onclick="APP.selectType(this,'Sports')">Sports</button>
+      <button class="chip" onclick="APP.selectType(this,'Trauma')">Trauma</button>
+      <button class="chip" onclick="APP.selectType(this,'Spine')">Spine</button>
+      <button class="chip" onclick="APP.selectType(this,'Tumor')">Tumor</button>
+      <button class="chip" onclick="APP.selectType(this,'Hand')">Hand</button>
+      <button class="chip" onclick="APP.selectType(this,'ROI')">ROI</button>
+    </div>
+  </div>
+  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="s-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="s-location" placeholder="如 Rt、Lt、L4-5"></div>
+  <div class="fg">
+    <label class="fg-label">骨材</label><input type="hidden" id="s-bone-val">
+    <div class="bone-grid" id="s-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
+  </div>
+  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="s-note" placeholder="選填"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-op')">取消</button><button class="btn-save" onclick="APP.saveOp()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-track" onclick="if(event.target===this)APP.closeModal('modal-track')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">新增追蹤紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="tk-date"></div>
+  <div class="fg">
+    <label class="fg-label">院區</label><input type="hidden" id="tk-area-val" value="中正">
+    <div class="chip-row"><button class="chip area on" onclick="APP.tkSelectArea(this,'中正')">中正</button><button class="chip area" onclick="APP.tkSelectArea(this,'右昌')">右昌</button><button class="chip area" onclick="APP.tkSelectArea(this,'診所')">診所</button></div>
+  </div>
+  <div class="fg"><label class="fg-label">病歷號</label><input class="f-input" type="text" id="tk-mrn" inputmode="numeric" placeholder="選填"></div>
+  <div class="fg" id="tk-clinicid-wrap" style="display:none"><label class="fg-label">診所 ID</label><input class="f-input" type="text" id="tk-clinicid" inputmode="numeric" placeholder="診所ID"></div>
+  <div class="fg"><label class="fg-label">病患姓名</label><input class="f-input" type="text" id="tk-name" placeholder="輸入姓名"></div>
+  <div class="fg">
+    <label class="fg-label">類型</label><input type="hidden" id="tk-type-val" value="">
+    <div class="chip-row wrap">
+      <button class="chip" onclick="APP.tkSelectType(this,'Joint')">Joint</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Sports')">Sports</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Trauma')">Trauma</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Spine')">Spine</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Tumor')">Tumor</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Hand')">Hand</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'ROI')">ROI</button>
+    </div>
+  </div>
+  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="tk-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="tk-loc" placeholder="如 Rt、Lt、L4-5"></div>
+  <div class="fg">
+    <label class="fg-label">骨材</label><input type="hidden" id="tk-bone-val">
+    <div class="bone-grid" id="tk-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
+  </div>
+  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="tk-note" placeholder="選填"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-track')">取消</button><button class="btn-save" onclick="APP.saveTrack()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-mat" onclick="if(event.target===this)APP.closeModal('modal-mat')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">新增醫材紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="m-date"></div>
+  <div class="fg"><label class="fg-label">廠牌</label><input class="f-input" type="text" id="m-brand" placeholder="廠牌名稱"></div>
+  <div class="fg"><label class="fg-label">產品</label><input class="f-input" type="text" id="m-product" placeholder="產品名稱"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="m-qty" value="1" min="1"></div>
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="m-price" placeholder="0"></div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-mat')">取消</button><button class="btn-save" onclick="APP.saveMat()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-code" onclick="if(event.target===this)APP.closeModal('modal-code')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">新增代碼紀錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="c-date"></div>
+  <div class="fg"><label class="fg-label">術式名稱</label><input class="f-input" type="text" id="c-name"></div>
+  <div class="fg"><label class="fg-label">代碼</label><input class="f-input" type="text" id="c-code"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="c-price" placeholder="0"></div>
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="c-qty" value="1" min="1"></div>
+  </div>
+  <div class="fg"><label class="fg-label">院區</label><input class="f-input" type="text" id="c-area" value="中正"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-code')">取消</button><button class="btn-save" onclick="APP.saveCode()">儲存</button></div>
+</div></div>
+
+<div class="modal-bd" id="modal-cli" onclick="if(event.target===this)APP.closeModal('modal-cli')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><div class="modal-title">新增門診記錄</div>
+  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="date" id="cl-date"></div>
+  <div class="fg"><label class="fg-label">產品</label><input class="f-input" type="text" id="cl-product" placeholder="輸入產品名稱"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="cl-price" placeholder="0"></div>
+    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="cl-qty" value="1" min="1"></div>
+  </div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-cli')">取消</button><button class="btn-save" onclick="APP.saveCli()">儲存</button></div>
+</div></div>
+
+<!-- SEARCH MODAL (Home Record style) -->
+<div class="modal-bd" id="modal-search" onclick="if(event.target===this)APP.closeSearch()">
+<div class="modal-sheet" style="border-radius:20px 20px 0 0;padding:0">
+  <div style="padding:12px 16px 0">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0 12px;border-bottom:1px solid #e8eef4">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8fa3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="search-input" class="f-input" type="text" placeholder="搜尋記錄..."
+        style="border:none;background:transparent;padding:0;font-size:1.05rem;flex:1"
+        oninput="APP.doSearch(this.value)">
+      <button onclick="APP.closeSearch()" style="border:none;background:none;color:#8fa3b8;font-size:1.1rem;cursor:pointer;padding:4px">✕</button>
+    </div>
+  </div>
+  <div id="search-results" style="max-height:65dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)">
+    <div class="load-msg" style="color:var(--muted)">輸入關鍵字搜尋</div>
+  </div>
+</div></div>
+
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

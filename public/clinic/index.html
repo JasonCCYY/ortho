@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="醫療查詢">
+<meta name="theme-color" content="#1a7fd4">
+<title>診號查詢</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 34px;
+    padding: 0 12px;
+    border: none;
+    background: #e4ecf4;
+    border-radius: 8px;
+    color: var(--txt2);
+    font-size: .84rem;
+    font-weight: 600;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .back-btn:active { background: rgba(26,127,212,.12); color: var(--accent); }
+  .back-btn svg { flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="auth-screen" style="display:none">
+  <button class="btn-google" onclick="AUTH.signIn()">
+    <img src="https://www.google.com/favicon.ico" alt="" style="width:20px">
+    使用 Google 帳號登入
+  </button>
+</div>
+
+<div id="main-app" style="display:none;flex-direction:column;height:100dvh">
+
+  <div id="header">
+    <div style="display:flex;align-items:center;gap:8px">
+      <!-- 返回手術記錄按鈕 -->
+      <button class="back-btn" onclick="window.location.href='/'" title="回到手術記錄">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        手術
+      </button>
+      <div class="hdr-title">🏥 診號查詢</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="hdr-btn" onclick="refreshCurrent()" title="重新整理">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+      <img id="user-avatar" src="" alt="" onclick="AUTH.signOut()"
+        style="display:none;width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid var(--acc-bd)"
+        title="點擊登出">
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- 蔣元鈞 -->
+    <div id="pg-appts" class="page">
+      <div class="card">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          蔣元鈞 · 近兩週預約診號
+        </div>
+        <table class="appt-table">
+          <thead><tr><th>日期</th><th>時段</th><th>診間</th><th style="text-align:right">最新號</th></tr></thead>
+          <tbody id="appt-body">
+            <tr><td colspan="4" class="loading"><div class="spinner" style="margin:0 auto 8px"></div>載入中...</td></tr>
+          </tbody>
+        </table>
+        <div class="note" id="appt-note" style="display:none">
+          來源：<a href="http://register.jjoh.org/Main/Clinic100" target="_blank">中正掛號系統</a> · 僅供參考
+        </div>
+      </div>
+    </div>
+
+    <!-- 蘇皇儒 & 程俊傑 -->
+    <div id="pg-appts2" class="page">
+      <div class="card">
+        <div class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          蘇皇儒 &amp; 程俊傑 · 近兩週預約診號
+        </div>
+        <table class="appt-table">
+          <thead><tr><th>日期</th><th>醫師</th><th>時段</th><th>診間</th><th style="text-align:right">最新號</th></tr></thead>
+          <tbody id="appt2-body">
+            <tr><td colspan="5" class="loading"><div class="spinner" style="margin:0 auto 8px"></div>載入中...</td></tr>
+          </tbody>
+        </table>
+        <div class="note" id="appt2-note" style="display:none">
+          來源：<a href="http://register.jjoh.org/Main/Clinic100" target="_blank">中正掛號系統</a> · 僅供參考
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="bottom-tabs">
+    <button class="tab-btn active" id="tab-appts" onclick="switchTab('appts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      蔣醫師
+    </button>
+    <button class="tab-btn" id="tab-appts2" onclick="switchTab('appts2')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      蘇&amp;程醫師
+    </button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/js/auth.js"></script>
+<script src="/clinic/js/app.js"></script>
+</body>
+</html>
