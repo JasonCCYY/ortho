@@ -604,23 +604,37 @@ const APP = {
     try {
       let items = await SHEETS.loadMatProducts();
       if(!items.length) { el.innerHTML = this.empty(); return; }
-      const groups = {};
-      items.forEach(r => { (groups[r.brand]=groups[r.brand]||[]).push(r); });
-      let html = '';
-      Object.entries(groups).sort((a,b)=>this.sortBrands(a[0],b[0])).forEach(([brand,rows]) => {
-        html += `<div class="list-group-hdr">${brand}</div>`;
-        rows.forEach(r => {
-          const cleanP = String(r.price||'').replace(/,/g,'').trim();
-          const _si=APP._storeRow(r);
-          html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('selfpay',${_si})">
-            <span class="col-brand">${r.brand}</span>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px">${r.product}</span>
-            <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddMat('${r.brand.replace(/'/g,"\\'")}','${r.product.replace(/'/g,"\\'")}','${cleanP}')" title="新增到骨材記錄" style="position:absolute;left:50%;transform:translateX(-50%);flex-shrink:0">＋</button>
-            <span class="col-price">${cleanP?'$'+Number(cleanP).toLocaleString():'-'}</span>
-            <span class="col-hosp">${r.hospital||''}</span>
-          </div>`;
+
+      // 分成中正（含空白）和右昌兩組
+      const mainItems = items.filter(r => (r.hospital||'') !== '右昌');
+      const ycItems   = items.filter(r => (r.hospital||'') === '右昌');
+
+      const renderGroup = (list) => {
+        const groups = {};
+        list.forEach(r => { (groups[r.brand]=groups[r.brand]||[]).push(r); });
+        let html = '';
+        Object.entries(groups).sort((a,b)=>this.sortBrands(a[0],b[0])).forEach(([brand,rows]) => {
+          html += `<div class="list-group-hdr">${brand}</div>`;
+          rows.forEach(r => {
+            const cleanP = String(r.price||'').replace(/,/g,'').trim();
+            const _si = APP._storeRow(r);
+            html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('selfpay',${_si})">
+              <span class="col-brand">${r.brand}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px">${r.product}</span>
+              <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddMat('${r.brand.replace(/'/g,"\\'")}','${r.product.replace(/'/g,"\\'")}','${cleanP}')" title="新增到骨材記錄" style="position:absolute;left:50%;transform:translateX(-50%);flex-shrink:0">＋</button>
+              <span class="col-price">${cleanP?'$'+Number(cleanP).toLocaleString():'-'}</span>
+              <span class="col-hosp">${r.hospital||''}</span>
+            </div>`;
+          });
         });
-      });
+        return html;
+      };
+
+      let html = renderGroup(mainItems);
+      if(ycItems.length) {
+        html += `<div class="list-month-hdr" style="top:var(--col-hdr-h);background:var(--acc-lt);color:var(--accent);border-left:3px solid var(--accent)">右昌</div>`;
+        html += renderGroup(ycItems);
+      }
       el.innerHTML = html;
     } catch(e) { el.innerHTML = this.err(e); }
   },
