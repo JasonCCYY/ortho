@@ -8,11 +8,6 @@ const APP = {
   onAuthSuccess() {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('main-app').style.display   = 'flex';
-    const u = AUTH.userInfo;
-    if (u?.picture) {
-      const av = document.getElementById('user-avatar');
-      av.src = u.picture; av.style.display = 'block';
-    }
     switchTab('appts');
   },
 };

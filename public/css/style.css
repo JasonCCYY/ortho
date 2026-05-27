@@ -377,3 +377,22 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
   font-family: -apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;
   letter-spacing: -.01em;
 }
+
+/* ── 診號 App styles ── */
+.card{background:var(--surface);border-radius:var(--r);padding:14px 16px;border:1px solid var(--border)}
+.card-title{display:flex;align-items:center;gap:7px;font-size:.95rem;font-weight:700;color:var(--txt);margin-bottom:12px}
+.appt-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.appt-table th{text-align:left;padding:6px 8px;color:var(--muted);font-weight:700;font-size:.78rem;text-transform:uppercase;border-bottom:2px solid var(--border)}
+.appt-table td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.appt-table tr:last-child td{border-bottom:none}
+.session-tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.78rem;font-weight:600}
+.session-tag.am{background:#dbeafe;color:#1e40af}
+.session-tag.pm{background:#fef3c7;color:#92400e}
+.session-tag.eve{background:#ede9fe;color:#5b21b6}
+.appt-num{text-align:right;font-weight:700;font-size:1rem}
+.appt-num.hi{color:#16a34a}
+.appt-num.mid{color:#d97706}
+.appt-num.lo{color:var(--muted)}
+.note{font-size:.78rem;color:var(--muted);margin-top:10px;text-align:right}
+.note a{color:var(--accent)}
+.loading{text-align:center;padding:24px;color:var(--muted);font-size:.9rem}
