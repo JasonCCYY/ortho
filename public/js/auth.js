@@ -1,7 +1,7 @@
 // ── Google OAuth（與原 ortho app 相同架構）──
 const AUTH = {
   CLIENT_ID: '819164879021-10qcb700t7vpt5l1qhff7id63pkfve9e.apps.googleusercontent.com',
-  SCOPES: 'https://www.googleapis.com/auth/userinfo.profile',
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile',
   tokenClient: null,
   accessToken: null,
   userInfo: null,
@@ -101,14 +101,15 @@ const AUTH = {
   },
 
   _save(resp) {
-    const d = { token: resp.access_token, exp: Date.now() + resp.expires_in * 1000, user: this.userInfo };
+    const d = { token: resp.access_token, exp: Date.now() + resp.expires_in * 1000, user: this.userInfo, sv: 2 };
     localStorage.setItem('ortho_clinic_tok', JSON.stringify(d));
   },
 
   _load() {
     try {
       const d = JSON.parse(localStorage.getItem('ortho_clinic_tok') || 'null');
-      if (!d || Date.now() > d.exp - 60000) { localStorage.removeItem('ortho_clinic_tok'); return null; }
+      // sv:2 = has spreadsheets scope; force re-login if old token
+      if (!d || Date.now() > d.exp - 60000 || d.sv !== 2) { localStorage.removeItem('ortho_clinic_tok'); return null; }
       return d;
     } catch { return null; }
   },
