@@ -1284,5 +1284,7 @@ const APP = {
 
 document.addEventListener('DOMContentLoaded',()=>{
   APP.init();
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('[SW] register failed:', e));
+  }
 });

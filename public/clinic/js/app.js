@@ -79,10 +79,14 @@ function APP_TOAST(msg) {
 }
 
 window.addEventListener('load', async () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('[SW] register failed:', e));
+  }
   await AUTH.init();
   if (!AUTH.ok) {
     document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('main-app').style.display   = 'none';
+  } else {
+    APP.onAuthSuccess();
   }
 });
