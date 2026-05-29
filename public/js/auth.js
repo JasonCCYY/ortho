@@ -1,118 +1,124 @@
-// ── Google OAuth（與原 ortho app 相同架構）──
+// ── Auth：Authorization Code Flow + httpOnly Refresh Token ──
 const AUTH = {
-  CLIENT_ID: '819164879021-10qcb700t7vpt5l1qhff7id63pkfve9e.apps.googleusercontent.com',
-  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile',
-  tokenClient: null,
   accessToken: null,
-  userInfo: null,
+  userInfo:    null,
+  _expAt:      0,
+  _timer:      null,
   _refreshing: false,
-  _lastExpired: 0,
 
   async init() {
-    return new Promise(resolve => {
-      const s = document.createElement('script');
-      s.src = 'https://accounts.google.com/gsi/client';
-      s.onload = () => {
-        this.tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: this.CLIENT_ID,
-          scope: this.SCOPES,
-          callback: async resp => {
-            if (resp.error) { console.error(resp); return; }
-            const isFirst = !this.accessToken;
-            this.accessToken = resp.access_token;
-            this._save(resp);
-            this._scheduleRefresh(resp.expires_in * 1000);
-            if (isFirst) {
-              await this._fetchUserInfo();
-              APP.onAuthSuccess();
-            } else {
-              APP.refresh();
-            }
-            this._refreshing = false;
-          }
-        });
-        this._bindVisibility();
-        const saved = this._load();
-        if (saved) {
-          this.accessToken = saved.token;
-          this.userInfo = saved.user;
-          const d = JSON.parse(localStorage.getItem('ortho_clinic_tok') || 'null');
-          if (d) this._scheduleRefresh(d.exp - Date.now());
-          APP.onAuthSuccess();
-        }
-        resolve();
-      };
-      s.onerror = () => resolve();
-      document.head.appendChild(s);
-    });
+    // 1. 處理 auth_error（Google 拒絕授權等）
+    const url = new URL(location.href);
+    if (url.searchParams.get('auth_error')) {
+      url.searchParams.delete('auth_error');
+      history.replaceState({}, '', url.pathname);
+    }
+
+    // 2. 嘗試從 localStorage 恢復（頁面重整，token 還沒過期）
+    const saved = this._loadLocal();
+    if (saved) {
+      this.accessToken = saved.token;
+      this.userInfo    = saved.user;
+      this._expAt      = saved.exp;
+      this._scheduleRefresh(saved.exp - Date.now());
+    }
+
+    // 3. 沒有有效 access_token → 呼叫後端 refresh（有 httpOnly cookie 就能換）
+    if (!this.accessToken) {
+      await this._doRefresh();
+    }
+
+    // 4. 綁定背景切回前景自動 refresh
+    this._bindVisibility();
   },
 
-  async _fetchUserInfo() {
-    try {
-      const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: 'Bearer ' + this.accessToken }
-      });
-      this.userInfo = await r.json();
-      const d = JSON.parse(localStorage.getItem('ortho_clinic_tok') || 'null');
-      if (d) { d.user = this.userInfo; localStorage.setItem('ortho_clinic_tok', JSON.stringify(d)); }
-    } catch(e) {}
+  // 登入 → 導向 Google 授權頁
+  async signIn() {
+    const r = await fetch('/api/auth/url');
+    const { url } = await r.json();
+    location.href = url;
   },
 
-  _scheduleRefresh(ms) {
-    const delay = Math.max(ms - 5 * 60 * 1000, 10000);
+  // 登出
+  async signOut() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    this.accessToken = null;
+    this.userInfo    = null;
+    localStorage.removeItem('ortho_tok_v3');
     clearTimeout(this._timer);
-    this._timer = setTimeout(() => {
-      this.tokenClient?.requestAccessToken({ prompt: '' });
-    }, delay);
-  },
-
-  handleExpired() {
-    const now = Date.now();
-    if (this._refreshing || now - this._lastExpired < 15000) return;
-    this._refreshing = true;
-    this._lastExpired = now;
-    this.accessToken = null;
-    localStorage.removeItem('ortho_clinic_tok');
-    this.tokenClient?.requestAccessToken({ prompt: '' });
-  },
-
-  signIn() { this.tokenClient?.requestAccessToken({ prompt: 'select_account' }); },
-
-  signOut() {
-    if (this.accessToken) google.accounts.oauth2.revoke(this.accessToken);
-    this.accessToken = null;
-    this.userInfo = null;
-    localStorage.removeItem('ortho_clinic_tok');
     location.reload();
   },
 
+  // 後端換新 access_token
+  async _doRefresh() {
+    if (this._refreshing) return false;
+    this._refreshing = true;
+    try {
+      const r = await fetch('/api/auth/refresh', { method: 'POST' });
+      if (!r.ok) return false;
+      const d = await r.json();
+      if (!d.ok) return false;
+
+      this.accessToken = d.access_token;
+      this._expAt      = Date.now() + d.expires_in * 1000;
+      if (d.user) this.userInfo = d.user;  // 首次 refresh 才有 user
+      this._saveLocal();
+      this._scheduleRefresh(d.expires_in * 1000);
+      return true;
+    } catch(e) {
+      return false;
+    } finally {
+      this._refreshing = false;
+    }
+  },
+
+  _scheduleRefresh(ms) {
+    clearTimeout(this._timer);
+    const delay = Math.max(ms - 5 * 60 * 1000, 30 * 1000);
+    this._timer = setTimeout(async () => {
+      const ok = await this._doRefresh();
+      if (ok && APP?.refresh) APP.refresh();
+    }, delay);
+  },
+
+  // Sheets API 回傳 401/403 時呼叫
+  async handleExpired() {
+    const ok = await this._doRefresh();
+    if (!ok) {
+      localStorage.removeItem('ortho_tok_v3');
+      location.reload();
+    }
+  },
+
   _bindVisibility() {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible' || this._refreshing) return;
-      if (this.accessToken) {
-        const d = JSON.parse(localStorage.getItem('ortho_clinic_tok') || 'null');
-        if (d && d.exp - Date.now() < 5 * 60 * 1000) {
-          this.tokenClient?.requestAccessToken({ prompt: '' });
-        }
-      } else {
-        this.tokenClient?.requestAccessToken({ prompt: '' });
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!this.accessToken || this._expAt - Date.now() < 5 * 60 * 1000) {
+        await this._doRefresh();
       }
     });
   },
 
-  _save(resp) {
-    const d = { token: resp.access_token, exp: Date.now() + resp.expires_in * 1000, user: this.userInfo, sv: 2 };
-    localStorage.setItem('ortho_clinic_tok', JSON.stringify(d));
+  // localStorage：只存短效 access_token（1小時）
+  // refresh_token 永遠在 httpOnly cookie，JS 讀不到
+  _saveLocal() {
+    localStorage.setItem('ortho_tok_v3', JSON.stringify({
+      token: this.accessToken,
+      exp:   this._expAt,
+      user:  this.userInfo,
+    }));
   },
 
-  _load() {
+  _loadLocal() {
     try {
-      const d = JSON.parse(localStorage.getItem('ortho_clinic_tok') || 'null');
-      // sv:2 = has spreadsheets scope; force re-login if old token
-      if (!d || Date.now() > d.exp - 60000 || d.sv !== 2) { localStorage.removeItem('ortho_clinic_tok'); return null; }
+      const d = JSON.parse(localStorage.getItem('ortho_tok_v3') || 'null');
+      if (!d || Date.now() > d.exp - 60000) {
+        localStorage.removeItem('ortho_tok_v3');
+        return null;
+      }
       return d;
     } catch { return null; }
   },
 
-  get ok() { return !!this.accessToken; }
+  get ok() { return !!this.accessToken; },
 };
