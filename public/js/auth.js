@@ -54,14 +54,16 @@ const AUTH = {
     if (this._refreshing) return false;
     this._refreshing = true;
     try {
-      const r = await fetch('/api/auth/refresh', { method: 'POST' });
+      const needUser = !this.userInfo;
+      const url = '/api/auth/refresh' + (needUser ? '?with_user=1' : '');
+      const r = await fetch(url, { method: 'POST' });
       if (!r.ok) return false;
       const d = await r.json();
       if (!d.ok) return false;
 
       this.accessToken = d.access_token;
       this._expAt      = Date.now() + d.expires_in * 1000;
-      if (d.user) this.userInfo = d.user;  // 首次 refresh 才有 user
+      if (d.user) this.userInfo = d.user;
       this._saveLocal();
       this._scheduleRefresh(d.expires_in * 1000);
       return true;

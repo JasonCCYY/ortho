@@ -65,8 +65,6 @@ module.exports = async (req, res) => {
       return res.redirect('/?auth_error=' + tokens.error);
     }
 
-    const user = await fetchUserInfo(tokens.access_token);
-
     // refresh_token → httpOnly cookie（瀏覽器 JS 讀不到）
     const isProd = process.env.NODE_ENV !== 'development';
     const cookieOpts = [
@@ -75,12 +73,10 @@ module.exports = async (req, res) => {
       'HttpOnly',
       'SameSite=Lax',
       isProd ? 'Secure' : '',
-      'Max-Age=31536000',  // 1 年
+      'Max-Age=31536000',
     ].filter(Boolean).join('; ');
     res.setHeader('Set-Cookie', cookieOpts);
 
-    // 直接 redirect 回首頁，不帶任何 token 在 URL
-    // 前端 auth.init() 會自動呼叫 /api/auth/refresh 換 access_token
     res.redirect('/');
 
   } catch(e) {

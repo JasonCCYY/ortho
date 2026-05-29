@@ -43,7 +43,7 @@ const SHEETS = {
     const url = `${this.BASE}/${this.ID}/values/${encodeURIComponent(tab + '!' + range)}`;
     const r = await fetch(url, { headers: this.hdrs() });
     if (!r.ok) {
-      if (r.status === 401) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
+      if (r.status === 401 || r.status === 403) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
       throw new Error(`讀取失敗(${r.status}): ${tab}`);
     }
     return (await r.json()).values || [];
@@ -53,7 +53,7 @@ const SHEETS = {
     const url = `${this.BASE}/${this.ID}/values/${encodeURIComponent(tab + '!A1')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const r = await fetch(url, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' }, body: JSON.stringify({ values: rows }) });
     if (!r.ok) {
-      if (r.status === 401) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
+      if (r.status === 401 || r.status === 403) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
       throw new Error(`寫入失敗(${r.status}): ${tab}`);
     }
     return r.json();
@@ -63,7 +63,7 @@ const SHEETS = {
     const url = `${this.BASE}/${this.ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
     const r = await fetch(url, { method: 'PUT', headers: { ...this.hdrs(), 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) });
     if (!r.ok) {
-      if (r.status === 401) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
+      if (r.status === 401 || r.status === 403) { AUTH.handleExpired(); throw new Error(`登入過期，重新驗證中`); }
       throw new Error(`更新失敗(${r.status})`);
     }
     return r.json();

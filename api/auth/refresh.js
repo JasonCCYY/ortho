@@ -45,9 +45,11 @@ module.exports = async (req, res) => {
       return res.status(401).json({ ok:false, error:tokens.error });
     }
 
-    // 同時取 user info（不額外 round-trip，首次 refresh 才需要）
+    // user info：只在前端明確要求時才取（首次登入後）
     let user = null;
-    try { user = await get('www.googleapis.com', '/oauth2/v2/userinfo', tokens.access_token); } catch(_) {}
+    if (req.query && req.query.with_user === '1') {
+      try { user = await get('www.googleapis.com', '/oauth2/v2/userinfo', tokens.access_token); } catch(_) {}
+    }
 
     res.json({
       ok:           true,

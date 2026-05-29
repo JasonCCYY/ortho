@@ -26,6 +26,8 @@ const APP = {
     if (!AUTH.ok) {
       document.getElementById('auth-screen').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
+    } else {
+      this.onAuthSuccess();
     }
   },
 
