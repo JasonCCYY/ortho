@@ -4,42 +4,46 @@ const AUTH = {
   userInfo:    null,
   _expAt:      0,
   _timer:      null,
-  _refreshing: false,
+  _refreshing: null,   // Promise | null，防止並發
 
   async init() {
-    // 1. 處理 auth_error（Google 拒絕授權等）
+    // 1. 處理 auth_error
     const url = new URL(location.href);
     if (url.searchParams.get('auth_error')) {
+      console.warn('[AUTH] auth_error:', url.searchParams.get('auth_error'));
       url.searchParams.delete('auth_error');
       history.replaceState({}, '', url.pathname);
     }
 
-    // 2. 嘗試從 localStorage 恢復（頁面重整，token 還沒過期）
+    // 2. 從 localStorage 恢復（頁面重整，token 未過期）
     const saved = this._loadLocal();
     if (saved) {
       this.accessToken = saved.token;
       this.userInfo    = saved.user;
       this._expAt      = saved.exp;
+      console.log('[AUTH] restored from localStorage, exp in', Math.round((saved.exp - Date.now()) / 1000), 's');
       this._scheduleRefresh(saved.exp - Date.now());
     }
 
-    // 3. 沒有有效 access_token → 呼叫後端 refresh（有 httpOnly cookie 就能換）
+    // 3. 沒有有效 token → 後端 refresh
     if (!this.accessToken) {
-      await this._doRefresh();
+      console.log('[AUTH] no local token, trying backend refresh...');
+      const ok = await this._doRefresh();
+      console.log('[AUTH] backend refresh result:', ok, '| accessToken:', !!this.accessToken);
     }
 
-    // 4. 綁定背景切回前景自動 refresh
+    // 4. 綁定 visibility change
     this._bindVisibility();
+
+    console.log('[AUTH] init done, ok:', this.ok);
   },
 
-  // 登入 → 導向 Google 授權頁
   async signIn() {
     const r = await fetch('/api/auth/url');
     const { url } = await r.json();
     location.href = url;
   },
 
-  // 登出
   async signOut() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     this.accessToken = null;
@@ -49,42 +53,51 @@ const AUTH = {
     location.reload();
   },
 
-  // 後端換新 access_token
-  async _doRefresh() {
-    if (this._refreshing) return false;
-    this._refreshing = true;
+  // 用 Promise 去重，防止並發呼叫
+  _doRefresh() {
+    if (this._refreshing) return this._refreshing;
+    this._refreshing = this._execRefresh().finally(() => {
+      this._refreshing = null;
+    });
+    return this._refreshing;
+  },
+
+  async _execRefresh() {
     try {
       const needUser = !this.userInfo;
       const url = '/api/auth/refresh' + (needUser ? '?with_user=1' : '');
+      console.log('[AUTH] calling', url);
       const r = await fetch(url, { method: 'POST' });
+      console.log('[AUTH] refresh status:', r.status);
       if (!r.ok) return false;
       const d = await r.json();
-      if (!d.ok) return false;
+      if (!d.ok) { console.warn('[AUTH] refresh not ok:', d.error); return false; }
 
       this.accessToken = d.access_token;
       this._expAt      = Date.now() + d.expires_in * 1000;
       if (d.user) this.userInfo = d.user;
       this._saveLocal();
       this._scheduleRefresh(d.expires_in * 1000);
+      console.log('[AUTH] refresh success, expires_in:', d.expires_in);
       return true;
     } catch(e) {
+      console.error('[AUTH] refresh error:', e);
       return false;
-    } finally {
-      this._refreshing = false;
     }
   },
 
   _scheduleRefresh(ms) {
     clearTimeout(this._timer);
     const delay = Math.max(ms - 5 * 60 * 1000, 30 * 1000);
+    console.log('[AUTH] next refresh in', Math.round(delay / 1000), 's');
     this._timer = setTimeout(async () => {
       const ok = await this._doRefresh();
-      if (ok && APP?.refresh) APP.refresh();
+      if (ok && typeof APP !== 'undefined' && APP.refresh) APP.refresh();
     }, delay);
   },
 
-  // Sheets API 回傳 401/403 時呼叫
   async handleExpired() {
+    console.warn('[AUTH] handleExpired called');
     const ok = await this._doRefresh();
     if (!ok) {
       localStorage.removeItem('ortho_tok_v3');
@@ -96,13 +109,12 @@ const AUTH = {
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;
       if (!this.accessToken || this._expAt - Date.now() < 5 * 60 * 1000) {
+        console.log('[AUTH] visibility: refreshing token');
         await this._doRefresh();
       }
     });
   },
 
-  // localStorage：只存短效 access_token（1小時）
-  // refresh_token 永遠在 httpOnly cookie，JS 讀不到
   _saveLocal() {
     localStorage.setItem('ortho_tok_v3', JSON.stringify({
       token: this.accessToken,
