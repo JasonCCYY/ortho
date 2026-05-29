@@ -10,34 +10,42 @@ const APP = {
 
   // ── Init ──
   async init() {
+    console.log('[APP] init start');
     document.getElementById('loading').style.display = 'flex';
     try {
       await AUTH.init();
     } catch(e) {
-      console.error('AUTH.init failed:', e);
+      console.error('[APP] AUTH.init failed:', e);
     }
-    this.bindTabs();
-    this.bindSubTabs();
-    this.bindMatSwipe();
-    this.bindTabSwipe();
-    this.bindModalSwipe();
+    console.log('[APP] AUTH done, ok:', AUTH.ok);
+    try { this.bindTabs(); } catch(e) { console.error('[APP] bindTabs:', e); }
+    try { this.bindSubTabs(); } catch(e) { console.error('[APP] bindSubTabs:', e); }
+    try { this.bindMatSwipe(); } catch(e) { console.error('[APP] bindMatSwipe:', e); }
+    try { this.bindTabSwipe(); } catch(e) { console.error('[APP] bindTabSwipe:', e); }
+    try { this.bindModalSwipe(); } catch(e) { console.error('[APP] bindModalSwipe:', e); }
     document.getElementById('fab').addEventListener('click', () => this.fabClick());
     document.getElementById('loading').style.display = 'none';
+    console.log('[APP] loading hidden, AUTH.ok:', AUTH.ok);
     if (!AUTH.ok) {
+      console.log('[APP] showing auth screen');
       document.getElementById('auth-screen').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     } else {
-      this.onAuthSuccess();
+      console.log('[APP] calling onAuthSuccess');
+      try { this.onAuthSuccess(); } catch(e) { console.error('[APP] onAuthSuccess failed:', e); }
     }
+    console.log('[APP] init complete');
   },
 
 
   onAuthSuccess() {
+    console.log('[APP] onAuthSuccess start');
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
-    SHEETS.loadCategories();
-    this.switchTab('surgery', false);
-    // 背景預載其他常用頁面，讓切換時即時顯示
+    console.log('[APP] app display set to flex');
+    try { SHEETS.loadCategories(); } catch(e) { console.error('[APP] loadCategories:', e); }
+    try { this.switchTab('surgery', false); } catch(e) { console.error('[APP] switchTab:', e); }
+    console.log('[APP] onAuthSuccess done');
     setTimeout(() => { if(AUTH.ok) SHEETS.loadTrackRecords().catch(()=>{}); }, 1500);
     setTimeout(() => { if(AUTH.ok) SHEETS.loadClinicRecords().catch(()=>{}); }, 2500);
     // After 3s, refresh current view from network
