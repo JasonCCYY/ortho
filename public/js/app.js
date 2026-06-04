@@ -543,13 +543,13 @@ const APP = {
       const groups = {};
       recs.forEach(r => { const a = r.area||"其他"; (groups[a]=groups[a]||[]).push(r); });
 
-      // 每組內按日期降序（最新在上）
+      // 每組內按日期降序（最新在上）—— 用數字比較避免補零不一致問題
+      const toNum = d => {
+        const p = d.split('/');
+        return parseInt(p[0]||0)*10000 + parseInt(p[1]||0)*100 + parseInt(p[2]||0);
+      };
       Object.keys(groups).forEach(a => {
-        groups[a].sort((x, y) => {
-          const dx = x.date.replace(/\//g,"-");
-          const dy = y.date.replace(/\//g,"-");
-          return dy.localeCompare(dx);
-        });
+        groups[a].sort((x, y) => toNum(y.date) - toNum(x.date));
       });
 
       // 院區排序：中正 → 右昌 → 診所 → 其他
