@@ -538,26 +538,35 @@ const APP = {
     try {
       let recs = await SHEETS.loadTrackRecords();
       if(!recs.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
-      // Group by 院區, sort newest first within each group
-      const areaOrder = ['中正','右昌','診所'];
+
+      const areaOrder = ["中正","右昌","診所"];
       const groups = {};
-      recs.forEach(r => { const a=r.area||'其他'; (groups[a]=groups[a]||[]).push(r); });
-      Object.keys(groups).forEach(a => groups[a].sort((x,y)=>y.date.localeCompare(x.date)));
-      const sortedAreas = Object.keys(groups).sort((a,b) => {
-        const ai=areaOrder.indexOf(a), bi=areaOrder.indexOf(b);
-        return (ai<0?99:ai)-(bi<0?99:bi);
+      recs.forEach(r => { const a = r.area||"其他"; (groups[a]=groups[a]||[]).push(r); });
+
+      // 每組內按日期降序（最新在上）
+      Object.keys(groups).forEach(a => {
+        groups[a].sort((x, y) => {
+          const dx = x.date.replace(/\//g,"-");
+          const dy = y.date.replace(/\//g,"-");
+          return dy.localeCompare(dx);
+        });
       });
-      let rows = '';
+
+      // 院區排序：中正 → 右昌 → 診所 → 其他
+      const sortedAreas = Object.keys(groups).sort((a, b) => {
+        const ai = areaOrder.indexOf(a), bi = areaOrder.indexOf(b);
+        return (ai<0?99:ai) - (bi<0?99:bi);
+      });
+
+      let rows = "";
       sortedAreas.forEach(area => {
         rows += `<tr class="sx-month-row"><td colspan="8">${area} <span class="month-badge">${groups[area].length}</span></td></tr>`;
         groups[area].forEach(r => {
-          // Full date format: 2026/01/24
-          const dateFull = r.date;
-          const _si=APP._storeRow(r);
+          const _si = APP._storeRow(r);
           rows += `<tr class="sx-data-row" onclick="APP.openDetailS('track',${_si})">
-            <td class="sx-date" style="font-size:.82rem">${dateFull}</td>
+            <td class="sx-date" style="font-size:.82rem">${r.date}</td>
             <td class="sx-name">${r.name}</td>
-            <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
+            <td><span class="badge badge-${r.type}">${r.type||"-"}</span></td>
             <td class="sx-opname">${r.opName}</td>
             <td class="sx-loc" title="${r.location}">${r.location}</td>
             <td class="sx-implant">${r.implant}</td>
