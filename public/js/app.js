@@ -364,11 +364,210 @@ const APP = {
 
   fabClick() {
     if(this.tab==='surgery') {
-      if(this.subSx==='sxList') this.openModal('modal-op');
-      else this.openModal('modal-track');
+      if(this.subSx==='sxList') {
+        // 手術紀錄：顯示選單（掃描 or 手動）
+        this.toggleFabMenu();
+      } else {
+        this.openModal('modal-track');
+      }
     } else if(this.tab==='material') {
       if(this.subMat==='matRec') this.openModal('modal-mat');
       else if(this.subMat==='codeRec') this.openModal('modal-code');
+    }
+  },
+
+  toggleFabMenu() {
+    const menu = document.getElementById('fab-menu');
+    const overlay = document.getElementById('fab-overlay');
+    const isOpen = menu.style.display === 'flex';
+    menu.style.display = isOpen ? 'none' : 'flex';
+    overlay.style.display = isOpen ? 'none' : 'block';
+  },
+
+  closeFabMenu() {
+    document.getElementById('fab-menu').style.display = 'none';
+    document.getElementById('fab-overlay').style.display = 'none';
+  },
+
+  openManualInput() {
+    this.openModal('modal-op');
+  },
+
+  openScan() {
+    this.closeFabMenu();
+    document.getElementById('scan-file-input').click();
+  },
+
+  async onScanFiles(input) {
+    const files = Array.from(input.files);
+    if(!files.length) return;
+    input.value = ''; // reset
+
+    // 顯示掃描 modal
+    document.getElementById('scan-results').innerHTML = '';
+    document.getElementById('scan-status').textContent = `處理中，請稍候...`;
+    document.getElementById('modal-scan').classList.add('open');
+
+    try {
+      // 轉 base64
+      const toBase64 = file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const images = await Promise.all(files.map(toBase64));
+
+      // 送後端解析
+      const res = await fetch('/api/parse-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images }),
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || '解析失敗');
+
+      const patients = data.patients;
+      if(!patients.length) {
+        document.getElementById('scan-status').textContent = '找不到黃色框資料，請確認圖片';
+        return;
+      }
+
+      document.getElementById('scan-status').textContent = `找到 ${patients.length} 筆紀錄`;
+
+      // 載入代碼表（用於比對批價碼）
+      const opCodes = await SHEETS.loadOpCodes();
+      const codeMap = {};
+      opCodes.forEach(c => { codeMap[String(c.code).trim()] = c; });
+
+      // 渲染結果
+      let html = '';
+      patients.forEach((p, idx) => {
+        // 找到對應的代碼資料
+        const matchedCodes = (p.codes || []).map(code => {
+          const found = codeMap[code];
+          return found
+            ? { code, name: found.name, price: found.price, area: found.area, found: true }
+            : { code, name: '', price: '', area: '', found: false };
+        });
+
+        html += `<div class="scan-card" id="scan-card-${idx}">
+          <div class="scan-card-hdr">
+            <div>
+              <span class="scan-name">${p.name || '（無姓名）'}</span>
+              <span class="scan-mrn">${p.mrn ? ' · ' + p.mrn : ''}</span>
+            </div>
+            <span class="scan-date">${p.date}</span>
+          </div>`;
+
+        if(p.note) {
+          html += `<div class="scan-note">備註：${p.note}</div>`;
+        }
+
+        if(matchedCodes.length) {
+          html += `<div class="scan-codes">`;
+          matchedCodes.forEach(c => {
+            if(c.found) {
+              html += `<div class="scan-code-row">
+                <span class="scan-code-num">${c.code}</span>
+                <span class="scan-code-name">${c.name}</span>
+                <span class="scan-code-price">${c.price ? '$'+Number(String(c.price).replace(/,/g,'')).toLocaleString() : ''}</span>
+              </div>`;
+            } else {
+              html += `<div class="scan-code-row scan-code-notfound">
+                <span class="scan-code-num">${c.code}</span>
+                <span class="scan-code-name" style="color:var(--muted)">（代碼表中找不到）</span>
+              </div>`;
+            }
+          });
+          html += `</div>`;
+        }
+
+        // 操作按鈕
+        html += `<div class="scan-actions">
+          <button class="scan-btn-save" onclick="APP.scanConfirm(${idx})">✓ 新增</button>
+          <button class="scan-btn-edit" onclick="APP.scanEdit(${idx})">✏ 編輯</button>
+          <button class="scan-btn-skip" onclick="APP.scanSkip(${idx})">略過</button>
+        </div>
+        </div>`;
+      });
+
+      document.getElementById('scan-results').innerHTML = html;
+
+      // 儲存解析結果供後續操作
+      this._scanPatients = patients.map(p => ({
+        ...p,
+        matchedCodes: (p.codes || []).map(code => {
+          const found = codeMap[code];
+          return found ? { code, name: found.name, price: found.price, area: found.area } : null;
+        }).filter(Boolean),
+      }));
+
+    } catch(e) {
+      document.getElementById('scan-status').textContent = '❌ ' + e.message;
+    }
+  },
+
+  async scanConfirm(idx) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    const card = document.getElementById(`scan-card-${idx}`);
+    try {
+      // 新增手術紀錄
+      await SHEETS.addOp({
+        date: p.date,
+        area: '中正',
+        mrn: p.mrn,
+        clinicId: '',
+        name: p.name,
+        type: '',
+        opName: '',
+        location: '',
+        implant: '',
+        note: p.note,
+      });
+
+      // 新增代碼紀錄（每個批價碼一筆）
+      for(const c of (p.matchedCodes || [])) {
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: c.area || '中正' });
+      }
+
+      this.toast(`✅ ${p.name} 已新增`);
+      card.style.opacity = '0.4';
+      card.style.pointerEvents = 'none';
+      card.querySelector('.scan-actions').innerHTML = '<span style="color:var(--green);font-size:.88rem">✓ 已新增</span>';
+      this.loadSurgery();
+
+    } catch(e) {
+      this.toast('❌ ' + e.message);
+    }
+  },
+
+  scanEdit(idx) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    this.closeModal('modal-scan');
+    // 預填手術紀錄表單
+    this.openModal('modal-op');
+    setTimeout(() => {
+      const dateISO = p.date.replace(/\//g, '-');
+      document.getElementById('s-date').value = dateISO;
+      document.getElementById('s-mrn').value = p.mrn || '';
+      document.getElementById('s-name').value = p.name || '';
+      document.getElementById('s-note').value = p.note || '';
+      document.getElementById('s-area-val').value = '中正';
+      document.querySelectorAll('#modal-op .chip.area').forEach(c => {
+        c.classList.toggle('on', c.textContent.trim() === '中正');
+      });
+    }, 50);
+  },
+
+  scanSkip(idx) {
+    const card = document.getElementById(`scan-card-${idx}`);
+    if(card) {
+      card.style.opacity = '0.3';
+      card.style.pointerEvents = 'none';
+      card.querySelector('.scan-actions').innerHTML = '<span style="color:var(--muted);font-size:.88rem">已略過</span>';
     }
   },
 

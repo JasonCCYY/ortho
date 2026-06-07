@@ -392,3 +392,22 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .num-hi{color:var(--green)}
 .num-mid{color:#d97706}
 .num-lo{color:var(--muted)}
+
+/* ── 掃描結果 ── */
+.scan-card{margin:0 12px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:opacity .3s}
+.scan-card-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px}
+.scan-name{font-size:1rem;font-weight:700;color:var(--txt)}
+.scan-mrn{font-size:.85rem;color:var(--muted)}
+.scan-date{font-size:.82rem;color:var(--txt2);background:var(--elevated);padding:2px 8px;border-radius:20px}
+.scan-note{padding:0 14px 8px;font-size:.82rem;color:var(--txt2);border-bottom:1px solid var(--border)}
+.scan-codes{padding:8px 14px}
+.scan-code-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.scan-code-row:last-child{border-bottom:none}
+.scan-code-num{font-size:.8rem;color:var(--muted);width:46px;flex-shrink:0}
+.scan-code-name{flex:1;font-size:.9rem;color:var(--txt)}
+.scan-code-price{font-size:.9rem;color:var(--green);font-weight:600;white-space:nowrap}
+.scan-code-notfound{opacity:.6}
+.scan-actions{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}
+.scan-btn-save{flex:1;padding:8px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.88rem;font-weight:600;cursor:pointer}
+.scan-btn-edit{flex:1;padding:8px;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:.88rem;font-weight:600;cursor:pointer}
+.scan-btn-skip{padding:8px 12px;border:none;border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.88rem;cursor:pointer}
