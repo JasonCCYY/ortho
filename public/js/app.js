@@ -417,6 +417,7 @@ const APP = {
         reader.readAsDataURL(file);
       });
       const images = await Promise.all(files.map(toBase64));
+      console.log('[scan] images:', images.length, images.map(i => i.substring(0,30)+'...'));
 
       // 送後端解析
       const res = await fetch('/api/parse-image', {
@@ -424,7 +425,9 @@ const APP = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images }),
       });
+      console.log('[scan] response status:', res.status);
       const data = await res.json();
+      console.log('[scan] response data:', JSON.stringify(data).substring(0, 500));
       if(!data.ok) throw new Error(data.error || '解析失敗');
 
       const patients = data.patients;
