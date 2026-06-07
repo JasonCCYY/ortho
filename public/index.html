@@ -201,19 +201,15 @@
 <input type="file" id="scan-file-input" accept="image/*" multiple style="display:none" onchange="APP.onScanFiles(this)">
 
 <!-- FAB 選單 -->
-<div id="fab-menu" style="display:none;position:fixed;bottom:90px;right:20px;z-index:150;display:none;flex-direction:column;align-items:flex-end;gap:10px">
-  <div style="display:flex;align-items:center;gap:8px">
-    <span style="background:rgba(0,0,0,.6);color:#fff;font-size:.82rem;padding:4px 10px;border-radius:20px;white-space:nowrap">拍照掃描</span>
-    <button onclick="APP.openScan()" style="width:46px;height:46px;border-radius:50%;background:var(--accent);border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="7.5" r="1" fill="white" stroke="none"/></svg>
-    </button>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span style="background:rgba(0,0,0,.6);color:#fff;font-size:.82rem;padding:4px 10px;border-radius:20px;white-space:nowrap">手動輸入</span>
-    <button onclick="APP.closeFabMenu();APP.openManualInput()" style="width:46px;height:46px;border-radius:50%;background:var(--accent);border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-  </div>
+<div id="fab-menu" style="display:none;position:fixed;bottom:90px;right:16px;z-index:150;background:var(--surface);border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.18);border:1px solid var(--border);overflow:hidden;min-width:160px">
+  <button onclick="APP.openScan()" style="display:flex;align-items:center;gap:12px;width:100%;padding:14px 18px;background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;text-align:left">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="7.5" r="1" fill="var(--accent)" stroke="none"/></svg>
+    <span style="font-size:.95rem;font-weight:600;color:var(--txt)">拍照掃描</span>
+  </button>
+  <button onclick="APP.closeFabMenu();APP.openManualInput()" style="display:flex;align-items:center;gap:12px;width:100%;padding:14px 18px;background:none;border:none;cursor:pointer;text-align:left">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span style="font-size:.95rem;font-weight:600;color:var(--txt)">手動輸入</span>
+  </button>
 </div>
 <div id="fab-overlay" style="display:none;position:fixed;inset:0;z-index:140" onclick="APP.closeFabMenu()"></div>
 

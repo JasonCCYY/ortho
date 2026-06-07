@@ -379,8 +379,8 @@ const APP = {
   toggleFabMenu() {
     const menu = document.getElementById('fab-menu');
     const overlay = document.getElementById('fab-overlay');
-    const isOpen = menu.style.display === 'flex';
-    menu.style.display = isOpen ? 'none' : 'flex';
+    const isOpen = menu.style.display === 'block';
+    menu.style.display = isOpen ? 'none' : 'block';
     overlay.style.display = isOpen ? 'none' : 'block';
   },
 
