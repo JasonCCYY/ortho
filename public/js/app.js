@@ -409,15 +409,30 @@ const APP = {
     document.getElementById('modal-scan').classList.add('open');
 
     try {
-      // 轉 base64
+      // 轉 base64，並壓縮至 1MB 以內
       const toBase64 = file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const canvas = document.createElement('canvas');
+          // 最大邊長 1600px
+          const MAX = 1600;
+          let w = img.width, h = img.height;
+          if(w > MAX || h > MAX) {
+            if(w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          // 壓縮品質 0.8
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.onerror = reject;
+        img.src = url;
       });
       const images = await Promise.all(files.map(toBase64));
-      console.log('[scan] images:', images.length, images.map(i => i.substring(0,30)+'...'));
+      console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
       // 送後端解析
       const res = await fetch('/api/parse-image', {
