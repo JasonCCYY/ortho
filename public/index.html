@@ -276,7 +276,7 @@
     <label class="fg-label">骨材</label><input type="hidden" id="es-bone-val">
     <div class="bone-grid" id="es-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
-  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="es-note" placeholder="選填"></div>
+  <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="es-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('es-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-sx')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
 </div></div>
 
@@ -309,7 +309,7 @@
     <label class="fg-label">骨材</label><input type="hidden" id="et-bone-val">
     <div class="bone-grid" id="et-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
-  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="et-note" placeholder="選填"></div>
+  <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="et-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('et-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-track')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
 </div></div>
 
