@@ -163,9 +163,9 @@ const SHEETS = {
 
   async loadOpCodes() {
     const load = async () => {
-      const rows = await this.read(this.T.opCode, 'A2:E200');
+      const rows = await this.read(this.T.opCode, 'A2:F200');
       return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, code:r[0]||'', name:r[1]||'', price:r[2]||'', area:r[3]||'', itemId:r[4]||''
+        _row:i+2, code:r[0]||'', name:r[1]||'', price:r[2]||'', area:r[3]||'', type:r[4]||'', itemId:r[5]||''
       }));
     };
     return this.cached('opCode', load);
