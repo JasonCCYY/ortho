@@ -455,8 +455,11 @@ const APP = {
 
       // 載入代碼表（用於比對批價碼）
       const opCodes = await SHEETS.loadOpCodes();
+      // 只建立中正院區的代碼對照表
       const codeMap = {};
-      opCodes.forEach(c => { codeMap[String(c.code).trim()] = c; });
+      opCodes.filter(c => c.area === '中正').forEach(c => {
+        codeMap[String(c.code).trim()] = c;
+      });
 
       // 渲染結果
       let html = '';
@@ -547,7 +550,7 @@ const APP = {
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: c.area || '中正' });
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
       }
 
       this.toast(`✅ ${p.name} 已新增`);
