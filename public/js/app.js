@@ -468,8 +468,8 @@ const APP = {
         const matchedCodes = (p.codes || []).map(code => {
           const found = codeMap[code];
           return found
-            ? { code, name: found.name, price: found.price, area: found.area, found: true }
-            : { code, name: '', price: '', area: '', found: false };
+            ? { code, name: found.name, price: found.price, area: found.area, type: found.type || '', found: true }
+            : { code, name: '', price: '', area: '', type: '', found: false };
         });
 
         html += `<div class="scan-card" id="scan-card-${idx}">
@@ -520,7 +520,7 @@ const APP = {
         ...p,
         matchedCodes: (p.codes || []).map(code => {
           const found = codeMap[code];
-          return found ? { code, name: found.name, price: found.price, area: found.area } : null;
+          return found ? { code, name: found.name, price: found.price, area: found.area, type: found.type || '' } : null;
         }).filter(Boolean),
       }));
 
@@ -534,6 +534,9 @@ const APP = {
     if(!p) return;
     const card = document.getElementById(`scan-card-${idx}`);
     try {
+      // 從代碼取類型（取第一個有 type 的代碼）
+      const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
+
       // 新增手術紀錄
       await SHEETS.addOp({
         date: p.date,
@@ -541,7 +544,7 @@ const APP = {
         mrn: p.mrn,
         clinicId: '',
         name: p.name,
-        type: '',
+        type: typeFromCode,
         opName: '',
         location: '',
         implant: '',
