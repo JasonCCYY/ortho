@@ -472,6 +472,9 @@ const APP = {
             : { code, name: '', price: '', area: '', type: '', found: false };
         });
 
+        // 取類型（第一個有 type 的代碼）
+        const typeFromCode = matchedCodes.map(c => c.type).find(t => t) || '';
+
         html += `<div class="scan-card" id="scan-card-${idx}">
           <div class="scan-card-hdr">
             <div>
@@ -479,7 +482,8 @@ const APP = {
               <span class="scan-mrn">${p.mrn ? ' · ' + p.mrn : ''}</span>
             </div>
             <span class="scan-date">${p.date}</span>
-          </div>`;
+          </div>
+          ${typeFromCode ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:6px"><span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span></div>` : ''}`;
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
@@ -571,7 +575,6 @@ const APP = {
     const p = this._scanPatients?.[idx];
     if(!p) return;
     this.closeModal('modal-scan');
-    // 預填手術紀錄表單
     this.openModal('modal-op');
     setTimeout(() => {
       const dateISO = p.date.replace(/\//g, '-');
@@ -583,6 +586,15 @@ const APP = {
       document.querySelectorAll('#modal-op .chip.area').forEach(c => {
         c.classList.toggle('on', c.textContent.trim() === '中正');
       });
+      // 預填類型
+      const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
+      if(typeFromCode) {
+        document.getElementById('s-type-val').value = typeFromCode;
+        document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c => {
+          c.classList.toggle('on', c.textContent.trim() === typeFromCode);
+        });
+        this.updateOpDropdowns(typeFromCode);
+      }
     }, 50);
   },
 
