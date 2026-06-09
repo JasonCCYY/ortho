@@ -108,13 +108,13 @@ const SHEETS = {
       const iD=ci(['日期'],0), iA=ci(['院區'],1), iMR=ci(['病歷號'],2),
             iCL=ci(['診所ID'],3), iN=ci(['姓名'],4),
             iT=ci(['類型'],5), iON=ci(['名稱','術式'],6),
-            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9);
+            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9), iUID=ci(['UsageID'],10);
       const rows = await this.read(this.T.op, 'A2:K500');
       return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
         _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
         clinicId:r[iCL]||'', name:r[iN]||'',
         type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
-        implant:r[iI]||'', note:r[iNt]||''
+        implant:r[iI]||'', note:r[iNt]||'', usageId:r[iUID]||''
       }));
     };
     return this.cached('op', load);
@@ -122,18 +122,19 @@ const SHEETS = {
 
   async loadTrackRecords() {
     const load = async () => {
-      // 追蹤: A=日期,B=院區,C=病歷號,D=診所ID,E=姓名,F=類型,G=名稱,H=部位,I=骨材,J=備註,K=UsageID
-      const hRow = await this.read(this.T.track, 'A1:M1');
+      const hRow = await this.read(this.T.track, 'A1:K1');
       const h = (hRow[0]||[]).map(x=>(x||'').trim());
       const ci = (names, fb) => { for(const n of names){const i=h.indexOf(n);if(i>=0)return i;} return fb; };
       const iD=ci(['日期'],0),iA=ci(['院區'],1),iMR=ci(['病歷號'],2),
             iClinic=ci(['診所ID'],3),iN=ci(['姓名'],4),iT=ci(['類型'],5),
-            iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),iNt=ci(['備註'],9);
-      const rows = await this.read(this.T.track, 'A2:M500');
+            iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),
+            iNt=ci(['備註'],9),iUID=ci(['UsageID'],10);
+      const rows = await this.read(this.T.track, 'A2:K500');
       return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
         _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
         clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
-        opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'', note:r[iNt]||''
+        opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
+        note:r[iNt]||'', usageId:r[iUID]||''
       }));
     };
     return this.cached('track', load);
@@ -227,56 +228,124 @@ const SHEETS = {
     } catch(e) { console.warn('Category load failed:', e); }
   },
 
+  // ── 用 usageId 搜尋正確行號 ──
+  async findRowByUid(tab, range, uidCol, uid) {
+    if (!uid) return null;
+    const rows = await this.read(tab, range);
+    for (let i = 0; i < rows.length; i++) {
+      if ((rows[i][uidCol]||'').trim() === uid.trim()) return i + 2;
+    }
+    return null;
+  },
+
   // ── Writers ──
-  async updateSurgery(row, d) {
+  async updateSurgery(row, d, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.op, 'A2:K500', 10, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.op+'!A'+row+':J'+row, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_op');
   },
 
-  async updateTrack(row, d) {
+  async updateTrack(row, d, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.track, 'A2:K500', 10, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.track+'!A'+row+':J'+row, [[d.date,d.area,d.mrn,d.clinicId,d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_track');
   },
 
-  async updateMatRow(row, d) {
+  async updateMatRow(row, d, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.matRec, 'A2:H500', 5, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.matRec+'!A'+row+':E'+row, [[d.date,d.brand,d.product,d.price,d.qty]]);
     if (d.done !== undefined) await this.put(this.T.matRec+'!G'+row, [[d.done]]);
     localStorage.removeItem('ortho_matRec');
   },
 
-  async setDone(row) {
+  async setDone(row, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.matRec, 'A2:H500', 5, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.matRec+'!G'+row, [['true']]);
     localStorage.removeItem('ortho_matRec');
   },
 
-  async updateOpCode(row, d) {
-    await this.put(this.T.opCode+'!A'+row+':D'+row, [[d.code,d.name,d.price,d.area]]);
+  // OP代碼更新 + 同步代碼紀錄
+  async updateOpCode(row, d, syncPrices) {
+    await this.put(this.T.opCode+'!A'+row+':E'+row, [[d.code,d.name,d.price,d.area,d.type||'']]);
     localStorage.removeItem('ortho_opCode');
+    // 同步更新代碼紀錄中相同代碼的價格
+    if (syncPrices && d.code && d.price) {
+      const cleanP = String(d.price).replace(/,/g,'');
+      const recs = await this.read(this.T.codeRec, 'A2:H500');
+      const updates = [];
+      for (let i = 0; i < recs.length; i++) {
+        if ((recs[i][3]||'').trim() === String(d.code).trim()) {
+          updates.push({ row: i+2, price: cleanP });
+        }
+      }
+      for (const u of updates) {
+        await this.put(this.T.codeRec+'!C'+u.row, [[u.price]]);
+      }
+      localStorage.removeItem('ortho_codeRec');
+    }
   },
 
-  async updateSelfPay(row, d) {
+  // 自費醫材更新 + 同步骨材記錄（廠商+產品+院區）
+  async updateSelfPay(row, d, syncPrices) {
     await this.put(this.T.matProd+'!B'+row+':C'+row, [[d.brand,d.product]]);
     await this.put(this.T.matProd+'!E'+row+':F'+row, [[d.price,d.hospital]]);
     localStorage.removeItem('ortho_matProd');
+    // 同步骨材記錄中相同廠商+產品的價格
+    if (syncPrices && d.brand && d.product && d.price) {
+      const cleanP = String(d.price).replace(/,/g,'');
+      const recs = await this.read(this.T.matRec, 'A2:H500');
+      const updates = [];
+      for (let i = 0; i < recs.length; i++) {
+        const brand = (recs[i][1]||'').trim();
+        const prod  = (recs[i][2]||'').trim();
+        if (brand === d.brand.trim() && prod === d.product.trim()) {
+          updates.push({ row: i+2 });
+        }
+      }
+      for (const u of updates) {
+        await this.put(this.T.matRec+'!D'+u.row, [[cleanP]]);
+      }
+      localStorage.removeItem('ortho_matRec');
+    }
   },
 
-  async updateCodeRec(row, d) {
+  async updateCodeRec(row, d, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.codeRec, 'A2:H500', 6, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.codeRec+'!A'+row+':F'+row, [[d.date,d.name,d.price,d.code,d.area,d.qty]]);
     localStorage.removeItem('ortho_codeRec');
   },
 
-  async updateClinicRec(row, d) {
+  async updateClinicRec(row, d, usageId) {
+    if (usageId) {
+      const r = await this.findRowByUid(this.T.clinic, 'A2:F500', 4, usageId);
+      if (r) row = r;
+    }
     await this.put(this.T.clinic+'!A'+row+':D'+row, [[d.date,d.product,d.price||d.total,d.qty]]);
     localStorage.removeItem('ortho_clinic');
   },
 
   async addOp(d) {
-    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,this.uid()]]);
     localStorage.removeItem('ortho_op'); return r;
   },
 
   async addTrack(d) {
-    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,this.uid()]]);
     localStorage.removeItem('ortho_track'); return r;
   },
 
@@ -309,12 +378,15 @@ const SHEETS = {
   },
 
   async addClinic(d) {
-    // A=日期,B=產品,C=單價,D=數量,E=UsageID,F=今日新增
     const r = await this.append(this.T.clinic, [[d.date,d.product,d.price||'',d.qty,this.uid(),'']]);
     localStorage.removeItem('ortho_clinic'); return r;
   },
 
-  async deleteRow(tab, row, c1, c2, cacheKey) {
+  async deleteRow(tab, row, c1, c2, cacheKey, usageId, uidRange, uidCol) {
+    if (usageId && uidRange !== undefined && uidCol !== undefined) {
+      const r = await this.findRowByUid(tab, uidRange, uidCol, usageId);
+      if (r) row = r;
+    }
     await this.clearRow(tab, row, c1, c2);
     if (cacheKey) localStorage.removeItem('ortho_' + cacheKey);
   },

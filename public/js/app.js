@@ -843,7 +843,7 @@ const APP = {
             <span class="col-product">${r.product}${sub}</span>
             <span class="col-qty">${r.qty}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row})" title="標記完成">☑</button>`}
+            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row},'${r.usageId||''}')" title="標記完成">☑</button>`}
           </div>`;
         });
       });
@@ -1088,8 +1088,8 @@ const APP = {
     try { await SHEETS.quickAddClinic(name, price); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async markDone(row) {
-    try { await SHEETS.setDone(row); this.toast('✅ 已標記完成'); this.loadMatRec(); }
+  async markDone(row, usageId) {
+    try { await SHEETS.setDone(row, usageId||''); this.toast('✅ 已標記完成'); this.loadMatRec(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
 
@@ -1229,26 +1229,36 @@ const APP = {
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value}, r.usageId||'');
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
-        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
+        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value}, r.usageId||'');
         this.closeModal('modal-edit-track'); this.loadTrack();
       } else if(type==='mat') {
-        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value});
+        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value}, r.usageId||'');
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
-        await SHEETS.updateSelfPay(r._row,{brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:document.getElementById('esp-price').value,hospital:document.getElementById('esp-hosp').value});
+        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:document.getElementById('esp-price').value,hospital:document.getElementById('esp-hosp').value};
+        const oldPrice = String(r.price||'').replace(/,/g,'');
+        const newPrice = String(d.price||'').replace(/,/g,'');
+        const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新骨材記錄中所有「${d.brand} ${d.product}」的價格？`);
+        await SHEETS.updateSelfPay(r._row, d, sync);
         this.closeModal('modal-edit-selfpay'); this.loadSelfPay();
+        if(sync) this.loadMatRec();
       } else if(type==='opcode') {
-        await SHEETS.updateOpCode(r._row,{code:document.getElementById('eoc-code').value,name:document.getElementById('eoc-name').value,price:document.getElementById('eoc-price').value,area:document.getElementById('eoc-area').value});
+        const d={code:document.getElementById('eoc-code').value,name:document.getElementById('eoc-name').value,price:document.getElementById('eoc-price').value,area:document.getElementById('eoc-area').value,type:document.getElementById('eoc-type')?.value||r.type||''};
+        const oldPrice = String(r.price||'').replace(/,/g,'');
+        const newPrice = String(d.price||'').replace(/,/g,'');
+        const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新代碼紀錄中所有「${d.name}（${d.code}）」的價格？`);
+        await SHEETS.updateOpCode(r._row, d, sync);
         this.closeModal('modal-edit-opcode'); this.loadOpCode();
+        if(sync) this.loadCodeRec();
       } else if(type==='coderec') {
-        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value});
+        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value}, r.usageId||'');
         this.closeModal('modal-edit-coderec'); this.loadCodeRec();
       } else if(type==='clinic') {
-        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value});
+        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value}, r.usageId||'');
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
       this.toast('✅ 已更新');
@@ -1259,12 +1269,22 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','H'],track:['A','K'],mat:['A','H'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','F']};
+    const colMap={sx:['A','K'],track:['A','K'],mat:['A','H'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','F']};
     const cacheMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
+    const uidMap={
+      sx:      { col:10, range:'A2:K500' },
+      track:   { col:10, range:'A2:K500' },
+      mat:     { col:5,  range:'A2:H500' },
+      coderec: { col:6,  range:'A2:H500' },
+      clinic:  { col:4,  range:'A2:F500' },
+    };
     try {
-      const tab=SHEETS.T[tabMap[type]],cols=colMap[type];
-      await SHEETS.deleteRow(tab,r._row,cols[0],cols[1],cacheMap[type]);
-      this._detailFromSearch = false; // 刪除後不回到搜尋
+      const tab=SHEETS.T[tabMap[type]], cols=colMap[type];
+      const uid = uidMap[type];
+      const usageId = uid ? (r.usageId||'') : '';
+      await SHEETS.deleteRow(tab, r._row, cols[0], cols[1], cacheMap[type],
+        usageId, uid?.range, uid?.col);
+      this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
       this.refresh();

@@ -414,7 +414,7 @@
     <label class="fg-label">骨材</label><input type="hidden" id="s-bone-val">
     <div class="bone-grid" id="s-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
-  <div class="fg"><label class="fg-label">備註</label><input class="f-input" type="text" id="s-note" placeholder="選填"></div>
+  <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="s-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('s-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-op')">取消</button><button class="btn-save" onclick="APP.saveOp()">儲存</button></div>
 </div></div>
 
