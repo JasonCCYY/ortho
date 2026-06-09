@@ -5,9 +5,13 @@
     }
   },
   "rewrites": [
-    { "source": "/api/:path*",      "destination": "/api/:path*" },
-    { "source": "/clinic/js/:path*","destination": "/public/clinic/js/:path*" },
-    { "source": "/clinic",          "destination": "/public/clinic/index.html" },
-    { "source": "/:path*",          "destination": "/public/:path*" }
+    { "source": "/clinic/js/:path*", "destination": "/public/clinic/js/:path*" },
+    { "source": "/clinic",           "destination": "/public/clinic/index.html" },
+    { "source": "/icons/:path*",     "destination": "/public/icons/:path*" },
+    { "source": "/css/:path*",       "destination": "/public/css/:path*" },
+    { "source": "/js/:path*",        "destination": "/public/js/:path*" },
+    { "source": "/sw.js",            "destination": "/public/sw.js" },
+    { "source": "/manifest.json",    "destination": "/public/manifest.json" },
+    { "source": "/",                 "destination": "/public/index.html" }
   ]
 }
