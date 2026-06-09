@@ -20,7 +20,7 @@ const APP = {
     el.innerHTML = `<div class="list-row" style="justify-content:center"><div class="spinner" style="margin:0 8px 0 0"></div><span style="color:var(--muted);font-size:.9rem">爬取掛號系統...</span></div>`;
     document.getElementById('appt-note').style.display = 'none';
     try {
-      const res = await fetch('/api/clinic');
+      const res = await fetch('/api/get-clinic');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'error');
@@ -47,7 +47,7 @@ const APP = {
     el.innerHTML = `<div class="list-row" style="justify-content:center"><div class="spinner" style="margin:0 8px 0 0"></div><span style="color:var(--muted);font-size:.9rem">爬取掛號系統...</span></div>`;
     document.getElementById('appt2-note').style.display = 'none';
     try {
-      const res = await fetch('/api/clinic2');
+      const res = await fetch('/api/get-clinic2');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'error');
