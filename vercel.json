@@ -5,8 +5,9 @@
     }
   },
   "rewrites": [
-    { "source": "/clinic/:path*", "destination": "/public/clinic/:path*" },
-    { "source": "/clinic",        "destination": "/public/clinic/index.html" },
-    { "source": "/:path*",        "destination": "/public/:path*" }
+    { "source": "/api/:path*",      "destination": "/api/:path*" },
+    { "source": "/clinic/js/:path*","destination": "/public/clinic/js/:path*" },
+    { "source": "/clinic",          "destination": "/public/clinic/index.html" },
+    { "source": "/:path*",          "destination": "/public/:path*" }
   ]
 }
