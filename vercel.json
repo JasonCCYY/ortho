@@ -1,7 +1,11 @@
 {
   "functions": {
+    "api/*.js": {
+      "memory": 512
+    },
     "api/parse-image.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "memory": 512
     }
   },
   "rewrites": [
