@@ -116,8 +116,17 @@ module.exports = async (req, res) => {
       note:  p.note||'',
     }));
 
-    console.log('[parse-image] success, patients:', patients.length);
-    res.json({ ok:true, patients });
+    // 去除重複（同病歷號+日期+代碼組合）
+    const seen = new Set();
+    const unique = patients.filter(p => {
+      const key = `${p.mrn}|${p.date}|${p.codes.sort().join(',')}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    console.log('[parse-image] success, patients:', unique.length, '(deduped from', patients.length, ')');
+    res.json({ ok:true, patients: unique });
 
   } catch(e) {
     console.error('[parse-image] exception:', e.message);
