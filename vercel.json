@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/parse-image.js": { "maxDuration": 30 },
-    "api/clinic.js":      { "maxDuration": 15 },
-    "api/clinic2.js":     { "maxDuration": 15 }
-  },
   "rewrites": [
     { "source": "/clinic/:path*", "destination": "/public/clinic/:path*" },
     { "source": "/clinic",        "destination": "/public/clinic/index.html" },
