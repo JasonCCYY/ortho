@@ -154,10 +154,13 @@ const SHEETS = {
   async loadMatProducts() {
     const load = async () => {
       const rows = await this.read(this.T.matProd, 'A2:F300');
-      return rows.filter(r=>r[1]).map((r,i)=>({
-        _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'',
-        type:r[3]||'', price:r[4]||'', hospital:r[5]||''
-      }));
+      if (!rows.length) return [];
+      // 自動偵測：A欄若是 itemId 格式（如 A1、Ru1）則有 id 欄，否則直接從廠牌開始
+      const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
+      return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
+        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'' }
+        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'' }
+      );
     };
     return this.cached('matProd', load);
   },
@@ -198,7 +201,13 @@ const SHEETS = {
   async loadClinicProducts() {
     const load = async () => {
       const rows = await this.read(this.T.clinicP, 'A2:C20');
-      return rows.filter(r=>r[0]).map((r,i)=>({_row:i+2, itemId:r[0]||'', name:r[1]||'', price:r[2]||''}));
+      if (!rows.length) return [];
+      // A欄若是 itemId 格式則跳過，否則直接讀產品名
+      const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
+      return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
+        ? { _row:i+2, itemId:r[0]||'', name:r[1]||'', price:r[2]||'' }
+        : { _row:i+2, itemId:'',       name:r[0]||'', price:r[1]||'' }
+      );
     };
     return this.cached('clinicP', load);
   },
