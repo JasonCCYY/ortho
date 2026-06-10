@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/clinic/:path*", "destination": "/public/clinic/:path*" },
+    { "source": "/clinic",        "destination": "/public/clinic/index.html" },
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/public/$1" }
+  ]
+}
