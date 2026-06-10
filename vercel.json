@@ -2,6 +2,6 @@
   "rewrites": [
     { "source": "/clinic/:path*", "destination": "/public/clinic/:path*" },
     { "source": "/clinic",        "destination": "/public/clinic/index.html" },
-    { "source": "/:path*",        "destination": "/public/:path*" }
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/public/$1" }
   ]
 }
