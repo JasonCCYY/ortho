@@ -1,7 +1,7 @@
 const http  = require('http');
 const iconv = require('iconv-lite');
 
-const DOCTOR = '\u848b\u5143\u9d48';
+const DOCTOR = '\u8523\u5143\u921e';
 
 module.exports = async (req, res) => {
   function fetchHtml(dateStr) {
