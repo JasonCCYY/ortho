@@ -1,6 +1,8 @@
 const http  = require('http');
 const iconv = require('iconv-lite');
 
+const DOCTOR = '\u848b\u5143\u9d48';
+
 module.exports = async (req, res) => {
   function fetchHtml(dateStr) {
     const urlPath = dateStr
@@ -22,8 +24,8 @@ module.exports = async (req, res) => {
         resp.on('end', () => {
           const buf = Buffer.concat(chunks);
           let html = iconv.decode(buf, 'utf8');
-          const m = html.match(/charset=["']?([\w-]+)/i);
-          const cs = m ? m[1].toLowerCase() : 'big5';
+          const mx = html.match(/charset=["']?([\w-]+)/i);
+          const cs = mx ? mx[1].toLowerCase() : 'big5';
           if (cs !== 'utf-8' && cs !== 'utf8') html = iconv.decode(buf, cs);
           resolve(html);
         });
@@ -41,7 +43,7 @@ module.exports = async (req, res) => {
       '\u4e0b\u5348': { label: '\u4e0b\u5348', cls: 'tag-pm' },
       '\u665a\u4e0a': { label: '\u591c\u8a3a', cls: 'tag-night' },
     };
-    const re = /<a[^>]*data-doctor=\u848b\u5143\u9d48[^>]*>/g;
+    const re = new RegExp('<a[^>]*data-doctor=' + DOCTOR + '[^>]*>', 'g');
     let m;
     while ((m = re.exec(html)) !== null) {
       const tag = m[0];
@@ -63,15 +65,24 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const today   = new Date();
+    const today    = new Date();
     const todayKey = fmtDate(today);
     const endDate  = new Date(today); endDate.setDate(today.getDate() + 14);
     const endKey   = fmtDate(endDate);
     const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
 
     const [h1, h2] = await Promise.all([fetchHtml(null), fetchHtml(fmtDate(nextWeek))]);
-    let results = [...parse(h1), ...parse(h2)];
 
+    // debug=1 → 回傳 HTML 裡所有 data-doctor 值，用來確認字元
+    if (req.query && req.query.debug === '1') {
+      const allDoctors = [...new Set([
+        ...[...h1.matchAll(/data-doctor=([^\s>]+)/g)].map(x => x[1]),
+        ...[...h2.matchAll(/data-doctor=([^\s>]+)/g)].map(x => x[1]),
+      ])];
+      return res.json({ ok: true, debug: true, doctors: allDoctors, searching: DOCTOR });
+    }
+
+    let results = [...parse(h1), ...parse(h2)];
     const seen = new Set();
     results = results.filter(r => { const k = r.dateKey + r.session; if (seen.has(k)) return false; seen.add(k); return true; });
     results = results.filter(r => r.dateKey >= todayKey && r.dateKey <= endKey);
