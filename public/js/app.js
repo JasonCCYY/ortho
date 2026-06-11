@@ -574,6 +574,7 @@ const APP = {
   scanEdit(idx) {
     const p = this._scanPatients?.[idx];
     if(!p) return;
+    this._scanEditIdx = idx;
     this.closeModal('modal-scan');
     this.openModal('modal-op');
     setTimeout(() => {
@@ -1303,8 +1304,16 @@ const APP = {
     const d={date:document.getElementById('s-date').value.replace(/-/g,'/'),area:document.getElementById('s-area-val').value,mrn:document.getElementById('s-mrn').value.trim(),clinicId:document.getElementById('s-clinicid')?.value.trim()||'',name:document.getElementById('s-name').value.trim(),type:document.getElementById('s-type-val').value,opName:document.getElementById('s-opname').value,location:document.getElementById('s-location').value.trim(),implant:document.getElementById('s-bone-val').value,note:document.getElementById('s-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
     this._savingOp = true;
+    const scanIdx = this._scanEditIdx ?? null;
+    this._scanEditIdx = null;
     try{
       await SHEETS.addOp(d);
+      if(scanIdx !== null) {
+        const sp = this._scanPatients?.[scanIdx];
+        for(const c of (sp?.matchedCodes || [])) {
+          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
+        }
+      }
       this.closeModal('modal-op');
       this.toast('✅ 已儲存');
       this.loadSurgery();
