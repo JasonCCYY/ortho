@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
 
 從黃色框擷取以下資料：
 
-1. 病患: 「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字
+1. 病患: 「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字；姓名通常為2至4個中文字，請逐字仔細讀取，不可遺漏任何一個字
 
 2. 日期: 畫面最上方「手術日期」欄位的民國年數字（如1150612代表民國115年6月12日）
 
@@ -112,7 +112,7 @@ module.exports = async (req, res) => {
       mrn:   stripZeros(p.mrn),
       name:  p.name||'',
       date:  (p.date_roc ? rocToAD(p.date_roc) : null) || today,
-      codes: (p.codes||[]).map(c=>String(c).trim()).filter(c=>/^\d+$/.test(c)),
+      codes: [...new Set((p.codes||[]).map(c=>String(c).trim()).filter(c=>/^\d+$/.test(c)))],
       note:  p.note||'',
     }));
 
