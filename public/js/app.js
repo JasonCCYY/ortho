@@ -393,6 +393,11 @@ const APP = {
     this.openModal('modal-op');
   },
 
+  openICD() {
+    const base = 'https://jasonccyy.github.io/icd/?p=1';
+    window.open(AUTH.ok ? base + '#08260000' : base, '_blank');
+  },
+
   openScan() {
     this.closeFabMenu();
     document.getElementById('scan-file-input').click();
