@@ -394,7 +394,7 @@ const APP = {
   },
 
   openICD() {
-    const base = 'https://jasonccyy.github.io/icd/?p=1';
+    const base = '/icd/?p=1';
     window.location.href = AUTH.ok ? base + '#08260000' : base;
   },
 

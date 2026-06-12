@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/icd/:path*",        "destination": "https://jasonccyy.github.io/icd/:path*" },
+    { "source": "/icd",               "destination": "https://jasonccyy.github.io/icd/index.html" },
     { "source": "/clinic/js/:path*",  "destination": "/public/clinic/js/:path*" },
     { "source": "/clinic",            "destination": "/public/clinic/index.html" },
     { "source": "/js/:path*",         "destination": "/public/js/:path*" },
