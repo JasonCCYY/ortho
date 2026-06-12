@@ -395,7 +395,7 @@ const APP = {
 
   openICD() {
     const base = 'https://jasonccyy.github.io/icd/?p=1';
-    window.open(AUTH.ok ? base + '#08260000' : base, '_blank');
+    window.location.href = AUTH.ok ? base + '#08260000' : base;
   },
 
   openScan() {
