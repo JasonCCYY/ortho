@@ -1249,7 +1249,7 @@ const APP = {
         const oldPrice = String(r.price||'').replace(/,/g,'');
         const newPrice = String(d.price||'').replace(/,/g,'');
         const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新骨材記錄中所有「${d.brand} ${d.product}」的價格？`);
-        await SHEETS.updateSelfPay(r._row, d, sync);
+        await SHEETS.updateSelfPay(r._row, d, sync, !!r.itemId);
         this.closeModal('modal-edit-selfpay'); this.loadSelfPay();
         if(sync) this.loadMatRec();
       } else if(type==='opcode') {
