@@ -1142,6 +1142,7 @@ const APP = {
     }
     document.getElementById('detail-body').innerHTML = content;
     document.getElementById('detail-edit-btn').style.display = '';
+    document.getElementById('detail-track-btn').style.display = type === 'sx' ? '' : 'none';
     document.getElementById('modal-detail').classList.add('open');
   
   },
@@ -1293,6 +1294,20 @@ const APP = {
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
+      this.refresh();
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
+  async moveToTrack() {
+    const r = this._detailData;
+    if(!r) return;
+    if(!confirm('將此手術紀錄移至追蹤？')) return;
+    try {
+      await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移至追蹤');
       this.refresh();
     } catch(e) { this.toast('❌ '+e.message); }
   },

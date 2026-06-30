@@ -239,7 +239,10 @@
 <div class="modal-bd" id="modal-detail" onclick="if(event.target===this)APP.closeModal('modal-detail')">
 <div class="modal-sheet">
   <div class="modal-handle"></div>
-  <div class="modal-title" id="detail-title">詳情</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 0">
+    <div class="modal-title" id="detail-title" style="flex:1">詳情</div>
+    <button id="detail-track-btn" onclick="APP.moveToTrack()" style="display:none;background:#e8f4e8;border:none;border-radius:8px;padding:5px 12px;font-size:.82rem;font-weight:600;color:#2a7a2a;cursor:pointer;white-space:nowrap">追蹤</button>
+  </div>
   <div id="detail-body"></div>
   <div class="detail-actions">
     <button class="btn-del" onclick="APP.deleteDetail()">🗑 刪除</button>
