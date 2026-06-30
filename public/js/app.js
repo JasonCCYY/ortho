@@ -1143,6 +1143,7 @@ const APP = {
     document.getElementById('detail-body').innerHTML = content;
     document.getElementById('detail-edit-btn').style.display = '';
     document.getElementById('detail-track-btn').style.display = type === 'sx' ? '' : 'none';
+    document.getElementById('detail-sx-btn').style.display = type === 'track' ? '' : 'none';
     document.getElementById('modal-detail').classList.add('open');
   
   },
@@ -1308,6 +1309,20 @@ const APP = {
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移至追蹤');
+      this.refresh();
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
+  async moveToSx() {
+    const r = this._detailData;
+    if(!r) return;
+    if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
+    try {
+      await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移回手術紀錄');
       this.refresh();
     } catch(e) { this.toast('❌ '+e.message); }
   },
