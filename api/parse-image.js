@@ -111,7 +111,7 @@ module.exports = async (req, res) => {
     const patients = (parsed.patients||[]).map(p => ({
       mrn:   stripZeros(p.mrn),
       name:  p.name||'',
-      date:  (p.date_roc ? rocToAD(p.date_roc) : null) || today,
+      date:  (() => { const d = (p.date_roc ? rocToAD(p.date_roc) : null) || today; return d < today ? today : d; })(),
       codes: [...new Set((p.codes||[]).map(c=>String(c).trim()).filter(c=>/^\d+$/.test(c)))],
       note:  p.note||'',
     }));
