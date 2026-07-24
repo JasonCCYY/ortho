@@ -735,7 +735,9 @@ const APP = {
         const aZ=a.area==='中正'?0:a.area==='右昌'?1:2;
         const bZ=b.area==='中正'?0:b.area==='右昌'?1:2;
         if(aZ!==bZ) return aZ-bZ;
-        return this.dateNum(b.date)-this.dateNum(a.date);
+        const dd=this.dateNum(b.date)-this.dateNum(a.date);
+        if(dd!==0) return dd;
+        return b._row - a._row;
       });
       if(!sorted.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
       let rows = '', lastM = '';
