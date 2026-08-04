@@ -307,9 +307,14 @@ const SHEETS = {
   },
 
   // 自費醫材更新 + 同步骨材記錄（廠商+產品+院區）
-  async updateSelfPay(row, d, syncPrices) {
-    await this.put(this.T.matProd+'!B'+row+':C'+row, [[d.brand,d.product]]);
-    await this.put(this.T.matProd+'!E'+row+':F'+row, [[d.price,d.hospital]]);
+  async updateSelfPay(row, d, syncPrices, hasId = false) {
+    if (hasId) {
+      await this.put(this.T.matProd+'!B'+row+':C'+row, [[d.brand,d.product]]);
+      await this.put(this.T.matProd+'!E'+row+':F'+row, [[d.price,d.hospital]]);
+    } else {
+      await this.put(this.T.matProd+'!A'+row+':B'+row, [[d.brand,d.product]]);
+      await this.put(this.T.matProd+'!D'+row+':E'+row, [[d.price,d.hospital]]);
+    }
     localStorage.removeItem('ortho_matProd');
     // 同步骨材記錄中相同廠商+產品的價格
     if (syncPrices && d.brand && d.product && d.price) {
