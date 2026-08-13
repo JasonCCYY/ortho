@@ -60,6 +60,23 @@ const APP = {
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
   todayISO() { return new Date().toISOString().split('T')[0]; },
 
+  // 把各種日期格式轉成 YYYY-MM-DD（給 type="date" 用）
+  toISO(s) {
+    s = String(s||'').trim();
+    if (!s) return '';
+    // 中文日期：2026年6月15日 / 115年6月15日
+    const cn = s.match(/^(\d{2,4})年(\d{1,2})月(\d{1,2})日?$/);
+    if (cn) { let y=parseInt(cn[1]); if(y<1911)y+=1911; return `${y}-${String(cn[2]).padStart(2,'0')}-${String(cn[3]).padStart(2,'0')}`; }
+    s = s.replace(/[\/\. ]/g, '-');
+    if (/^\d{7}$/.test(s)) return `${parseInt(s.slice(0,3))+1911}-${s.slice(3,5)}-${s.slice(5,7)}`; // 民國7碼
+    if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;               // 西元8碼
+    const m = s.match(/^(\d{2,4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) { let y=parseInt(m[1]); if(y<1911)y+=1911; return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`; }
+    return '';
+  },
+  // 去掉所有非數字／小數點（給 type="number" 用）
+  cleanNum(s) { return String(s||'').replace(/[^0-9.]/g,''); },
+
   loading() { return '<div class="load-msg">載入中...</div>'; },
   empty()   { return '<div class="empty-state"><div class="empty-icon">📋</div><div>尚無紀錄</div></div>'; },
   err(e)    { return `<div class="empty-state"><div class="empty-icon">⚠️</div><div>${e.message}</div></div>`; },
@@ -1152,9 +1169,7 @@ const APP = {
     if(!m) return;
     if(type==='sx'||type==='track') {
       const pfx = type==='sx'?'es':'et';
-      // Convert date to ISO for date input
-      const dateISO = (r.date||'').replace(/\//g,'-').replace(/(\d{4})-(\d{1,2})-(\d{1,2})/,(_,y,m,d)=>`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
-      document.getElementById(pfx+'-date').value = dateISO;
+      document.getElementById(pfx+'-date').value = this.toISO(r.date);
       // Area chips
       const areaVal = r.area||'中正';
       document.getElementById(pfx+'-area-val').value = areaVal;
@@ -1194,7 +1209,7 @@ const APP = {
       document.getElementById('em-brand').value   = r.brand||'';
       document.getElementById('em-product').value = r.product||'';
       document.getElementById('em-date').value    = r.date||'';
-      document.getElementById('em-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('em-price').value   = this.cleanNum(r.price);
       document.getElementById('em-qty').value     = r.qty||'1';
       const isDone = r.done?.toLowerCase()==='true';
       document.getElementById('em-done-val').value = isDone?'true':'false';
@@ -1203,24 +1218,24 @@ const APP = {
     } else if(type==='selfpay') {
       document.getElementById('esp-brand').value   = r.brand||'';
       document.getElementById('esp-product').value = r.product||'';
-      document.getElementById('esp-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('esp-price').value   = this.cleanNum(r.price);
       document.getElementById('esp-hosp').value    = r.hospital||'';
     } else if(type==='opcode') {
       document.getElementById('eoc-code').value  = r.code||'';
       document.getElementById('eoc-name').value  = r.name||'';
-      document.getElementById('eoc-price').value = String(r.price||'').replace(/,/g,'');
+      document.getElementById('eoc-price').value = this.cleanNum(r.price);
       document.getElementById('eoc-area').value  = r.area||'';
     } else if(type==='coderec') {
       document.getElementById('ecr-name').value  = r.name||'';
       document.getElementById('ecr-code').value  = r.code||'';
       document.getElementById('ecr-date').value  = r.date||'';
-      document.getElementById('ecr-price').value = String(r.price||'').replace(/,/g,'');
+      document.getElementById('ecr-price').value = this.cleanNum(r.price);
       document.getElementById('ecr-qty').value   = r.qty||'1';
       document.getElementById('ecr-area').value  = r.area||'';
     } else if(type==='clinic') {
       document.getElementById('ecl-date').value    = r.date||'';
       document.getElementById('ecl-product').value = r.product||'';
-      document.getElementById('ecl-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('ecl-price').value   = this.cleanNum(r.price);
       document.getElementById('ecl-qty').value     = r.qty||'1';
     }
     this.openModal(m, true);
