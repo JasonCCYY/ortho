@@ -1169,6 +1169,7 @@ const APP = {
     const editModalMap = { sx:'modal-edit-sx', track:'modal-edit-track', mat:'modal-edit-mat', selfpay:'modal-edit-selfpay', opcode:'modal-edit-opcode', coderec:'modal-edit-coderec', clinic:'modal-edit-clinic' };
     const m = editModalMap[type];
     if(!m) return;
+    this.openModal(m, true); // open modal FIRST so inputs are visible before value assignment (avoids iOS display:none→flex reset bug)
     if(type==='sx'||type==='track') {
       const pfx = type==='sx'?'es':'et';
       document.getElementById(pfx+'-date').value = this.toISO(r.date);
@@ -1220,7 +1221,7 @@ const APP = {
     } else if(type==='selfpay') {
       document.getElementById('esp-brand').value   = r.brand||'';
       document.getElementById('esp-product').value = r.product||'';
-      document.getElementById('esp-price').value   = this.cleanNum(r.price);
+      document.getElementById('esp-price').value   = r.price||'';
       document.getElementById('esp-hosp').value    = r.hospital||'';
     } else if(type==='opcode') {
       document.getElementById('eoc-code').value  = r.code||'';
@@ -1240,7 +1241,6 @@ const APP = {
       document.getElementById('ecl-price').value   = this.cleanNum(r.price);
       document.getElementById('ecl-qty').value     = r.qty||'1';
     }
-    this.openModal(m, true);
     } catch(e) { console.error('openEdit error:', e); this.toast('⚠️ 開啟修改失敗: '+e.message); }
   },
 
@@ -1259,9 +1259,9 @@ const APP = {
         await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value}, r.usageId||'');
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
-        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:document.getElementById('esp-price').value,hospital:document.getElementById('esp-hosp').value};
-        const oldPrice = String(r.price||'').replace(/,/g,'');
-        const newPrice = String(d.price||'').replace(/,/g,'');
+        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:this.cleanNum(document.getElementById('esp-price').value),hospital:document.getElementById('esp-hosp').value};
+        const oldPrice = this.cleanNum(r.price);
+        const newPrice = d.price;
         const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新骨材記錄中所有「${d.brand} ${d.product}」的價格？`);
         await SHEETS.updateSelfPay(r._row, d, sync, !!r.itemId);
         this.closeModal('modal-edit-selfpay'); this.loadSelfPay();
