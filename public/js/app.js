@@ -156,6 +156,8 @@ const APP = {
     }
     document.getElementById('fab').style.display = 'none'; // FAB only for surgery
     // hdr-add-btn removed from header
+    // 自費醫材價格常直接在試算表修改，每次切換都拿最新資料
+    if (sub === 'selfPay') localStorage.removeItem('ortho_matProd');
     const loaders = { matRec:()=>this.loadMatRec(), selfPay:()=>this.loadSelfPay(), opCode:()=>this.loadOpCode(), codeRec:()=>this.loadCodeRec(), estimate:()=>this.loadEstimate() };
     loaders[sub]?.();
   },
