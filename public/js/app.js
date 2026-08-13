@@ -1259,9 +1259,10 @@ const APP = {
         await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value}, r.usageId||'');
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
-        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:this.cleanNum(document.getElementById('esp-price').value),hospital:document.getElementById('esp-hosp').value};
+        const rawPrice = document.getElementById('esp-price').value.trim();
+        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:rawPrice,hospital:document.getElementById('esp-hosp').value};
         const oldPrice = this.cleanNum(r.price);
-        const newPrice = d.price;
+        const newPrice = this.cleanNum(rawPrice);
         const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新骨材記錄中所有「${d.brand} ${d.product}」的價格？`);
         await SHEETS.updateSelfPay(r._row, d, sync, !!r.itemId);
         this.closeModal('modal-edit-selfpay'); this.loadSelfPay();
