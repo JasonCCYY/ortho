@@ -11,6 +11,7 @@ const APP = {
   // ── Init ──
   async init() {
     console.log('[APP] init start');
+    SHEETS.initCache();
     document.getElementById('loading').style.display = 'flex';
     try {
       await AUTH.init();
@@ -59,6 +60,23 @@ const APP = {
   nowMonth() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`; },
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
   todayISO() { return new Date().toISOString().split('T')[0]; },
+
+  // 把各種日期格式轉成 YYYY-MM-DD（給 type="date" 用）
+  toISO(s) {
+    s = String(s||'').trim();
+    if (!s) return '';
+    // 中文日期：2026年6月15日 / 115年6月15日
+    const cn = s.match(/^(\d{2,4})年(\d{1,2})月(\d{1,2})日?$/);
+    if (cn) { let y=parseInt(cn[1]); if(y<1911)y+=1911; return `${y}-${String(cn[2]).padStart(2,'0')}-${String(cn[3]).padStart(2,'0')}`; }
+    s = s.replace(/[\/\. ]/g, '-');
+    if (/^\d{7}$/.test(s)) return `${parseInt(s.slice(0,3))+1911}-${s.slice(3,5)}-${s.slice(5,7)}`; // 民國7碼
+    if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;               // 西元8碼
+    const m = s.match(/^(\d{2,4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) { let y=parseInt(m[1]); if(y<1911)y+=1911; return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`; }
+    return '';
+  },
+  // 去掉所有非數字／小數點（給 type="number" 用）
+  cleanNum(s) { return String(s||'').replace(/[^0-9.]/g,''); },
 
   loading() { return '<div class="load-msg">載入中...</div>'; },
   empty()   { return '<div class="empty-state"><div class="empty-icon">📋</div><div>尚無紀錄</div></div>'; },
@@ -138,7 +156,6 @@ const APP = {
       this._applySlide(idx);
     }
     document.getElementById('fab').style.display = 'none'; // FAB only for surgery
-    // hdr-add-btn removed from header
     const loaders = { matRec:()=>this.loadMatRec(), selfPay:()=>this.loadSelfPay(), opCode:()=>this.loadOpCode(), codeRec:()=>this.loadCodeRec(), estimate:()=>this.loadEstimate() };
     loaders[sub]?.();
   },
@@ -717,7 +734,7 @@ const APP = {
 
   // ── Refresh ──
   refresh() {
-    const cacheMap = { sxList:'op', track:'track', matRec:'matRec', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec', estimate:'estimate', clinic:'clinic' };
+    const cacheMap = { sxList:'op', track:'track', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
     if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
@@ -740,7 +757,9 @@ const APP = {
         const aZ=a.area==='中正'?0:a.area==='右昌'?1:2;
         const bZ=b.area==='中正'?0:b.area==='右昌'?1:2;
         if(aZ!==bZ) return aZ-bZ;
-        return this.dateNum(b.date)-this.dateNum(a.date);
+        const dd=this.dateNum(b.date)-this.dateNum(a.date);
+        if(dd!==0) return dd;
+        return b._row - a._row;
       });
       if(!sorted.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
       let rows = '', lastM = '';
@@ -849,7 +868,7 @@ const APP = {
             <span class="col-product">${r.product}${sub}</span>
             <span class="col-qty">${r.qty}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row},'${r.usageId||''}')" title="標記完成">☑</button>`}
+            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row})" title="標記完成">☑</button>`}
           </div>`;
         });
       });
@@ -1094,8 +1113,8 @@ const APP = {
     try { await SHEETS.quickAddClinic(name, price); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async markDone(row, usageId) {
-    try { await SHEETS.setDone(row, usageId||''); this.toast('✅ 已標記完成'); this.loadMatRec(); }
+  async markDone(row) {
+    try { await SHEETS.setDone(row); this.toast('✅ 已標記完成'); this.loadMatRec(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
 
@@ -1155,11 +1174,10 @@ const APP = {
     const editModalMap = { sx:'modal-edit-sx', track:'modal-edit-track', mat:'modal-edit-mat', selfpay:'modal-edit-selfpay', opcode:'modal-edit-opcode', coderec:'modal-edit-coderec', clinic:'modal-edit-clinic' };
     const m = editModalMap[type];
     if(!m) return;
+    this.openModal(m, true); // open modal FIRST so inputs are visible before value assignment (avoids iOS display:none→flex reset bug)
     if(type==='sx'||type==='track') {
       const pfx = type==='sx'?'es':'et';
-      // Convert date to ISO for date input
-      const dateISO = (r.date||'').replace(/\//g,'-').replace(/(\d{4})-(\d{1,2})-(\d{1,2})/,(_,y,m,d)=>`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
-      document.getElementById(pfx+'-date').value = dateISO;
+      document.getElementById(pfx+'-date').value = this.toISO(r.date);
       // Area chips
       const areaVal = r.area||'中正';
       document.getElementById(pfx+'-area-val').value = areaVal;
@@ -1199,7 +1217,7 @@ const APP = {
       document.getElementById('em-brand').value   = r.brand||'';
       document.getElementById('em-product').value = r.product||'';
       document.getElementById('em-date').value    = r.date||'';
-      document.getElementById('em-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('em-price').value   = this.cleanNum(r.price);
       document.getElementById('em-qty').value     = r.qty||'1';
       const isDone = r.done?.toLowerCase()==='true';
       document.getElementById('em-done-val').value = isDone?'true':'false';
@@ -1208,27 +1226,26 @@ const APP = {
     } else if(type==='selfpay') {
       document.getElementById('esp-brand').value   = r.brand||'';
       document.getElementById('esp-product').value = r.product||'';
-      document.getElementById('esp-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('esp-price').value   = r.price||'';
       document.getElementById('esp-hosp').value    = r.hospital||'';
     } else if(type==='opcode') {
       document.getElementById('eoc-code').value  = r.code||'';
       document.getElementById('eoc-name').value  = r.name||'';
-      document.getElementById('eoc-price').value = String(r.price||'').replace(/,/g,'');
+      document.getElementById('eoc-price').value = this.cleanNum(r.price);
       document.getElementById('eoc-area').value  = r.area||'';
     } else if(type==='coderec') {
       document.getElementById('ecr-name').value  = r.name||'';
       document.getElementById('ecr-code').value  = r.code||'';
       document.getElementById('ecr-date').value  = r.date||'';
-      document.getElementById('ecr-price').value = String(r.price||'').replace(/,/g,'');
+      document.getElementById('ecr-price').value = this.cleanNum(r.price);
       document.getElementById('ecr-qty').value   = r.qty||'1';
       document.getElementById('ecr-area').value  = r.area||'';
     } else if(type==='clinic') {
       document.getElementById('ecl-date').value    = r.date||'';
       document.getElementById('ecl-product').value = r.product||'';
-      document.getElementById('ecl-price').value   = String(r.price||'').replace(/,/g,'');
+      document.getElementById('ecl-price').value   = this.cleanNum(r.price);
       document.getElementById('ecl-qty').value     = r.qty||'1';
     }
-    this.openModal(m, true);
     } catch(e) { console.error('openEdit error:', e); this.toast('⚠️ 開啟修改失敗: '+e.message); }
   },
 
@@ -1237,19 +1254,20 @@ const APP = {
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value}, r.usageId||'');
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
-        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value}, r.usageId||'');
+        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
         this.closeModal('modal-edit-track'); this.loadTrack();
       } else if(type==='mat') {
-        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value}, r.usageId||'');
+        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value});
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
-        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:document.getElementById('esp-price').value,hospital:document.getElementById('esp-hosp').value};
-        const oldPrice = String(r.price||'').replace(/,/g,'');
-        const newPrice = String(d.price||'').replace(/,/g,'');
+        const rawPrice = document.getElementById('esp-price').value.trim();
+        const d={brand:document.getElementById('esp-brand').value,product:document.getElementById('esp-product').value,price:rawPrice,hospital:document.getElementById('esp-hosp').value};
+        const oldPrice = this.cleanNum(r.price);
+        const newPrice = this.cleanNum(rawPrice);
         const sync = (oldPrice !== newPrice) && confirm(`單價從 $${oldPrice} 改為 $${newPrice}\n是否同步更新骨材記錄中所有「${d.brand} ${d.product}」的價格？`);
         await SHEETS.updateSelfPay(r._row, d, sync, !!r.itemId);
         this.closeModal('modal-edit-selfpay'); this.loadSelfPay();
@@ -1263,10 +1281,10 @@ const APP = {
         this.closeModal('modal-edit-opcode'); this.loadOpCode();
         if(sync) this.loadCodeRec();
       } else if(type==='coderec') {
-        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value}, r.usageId||'');
+        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value});
         this.closeModal('modal-edit-coderec'); this.loadCodeRec();
       } else if(type==='clinic') {
-        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value}, r.usageId||'');
+        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value});
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
       this.toast('✅ 已更新');
@@ -1277,15 +1295,9 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','K'],track:['A','K'],mat:['A','H'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','F']};
-    const cacheMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const uidMap={
-      sx:      { col:10, range:'A2:K500' },
-      track:   { col:10, range:'A2:K500' },
-      mat:     { col:5,  range:'A2:H500' },
-      coderec: { col:6,  range:'A2:H500' },
-      clinic:  { col:4,  range:'A2:F500' },
-    };
+    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
+    const cacheMap={sx:'op',track:'track',mat:'matRec2',selfpay:'matProd',opcode:'opCode',coderec:'codeRec2',clinic:'clinic2'};
+    const uidMap={};
     try {
       const tab=SHEETS.T[tabMap[type]], cols=colMap[type];
       const uid = uidMap[type];
