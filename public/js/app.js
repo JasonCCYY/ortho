@@ -1246,7 +1246,7 @@ const APP = {
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value}, r.usageId||'');
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
@@ -1287,11 +1287,9 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','K'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
+    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
     const cacheMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const uidMap={
-      sx: { col:10, range:'A2:K500' },
-    };
+    const uidMap={};
     try {
       const tab=SHEETS.T[tabMap[type]], cols=colMap[type];
       const uid = uidMap[type];
