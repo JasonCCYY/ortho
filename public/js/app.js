@@ -862,7 +862,7 @@ const APP = {
             <span class="col-product">${r.product}${sub}</span>
             <span class="col-qty">${r.qty}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row},'${r.usageId||''}')" title="標記完成">☑</button>`}
+            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row})" title="標記完成">☑</button>`}
           </div>`;
         });
       });
@@ -1107,8 +1107,8 @@ const APP = {
     try { await SHEETS.quickAddClinic(name, price); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async markDone(row, usageId) {
-    try { await SHEETS.setDone(row, usageId||''); this.toast('✅ 已標記完成'); this.loadMatRec(); }
+  async markDone(row) {
+    try { await SHEETS.setDone(row); this.toast('✅ 已標記完成'); this.loadMatRec(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
 
@@ -1250,10 +1250,10 @@ const APP = {
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
-        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value}, r.usageId||'');
+        await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
         this.closeModal('modal-edit-track'); this.loadTrack();
       } else if(type==='mat') {
-        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value}, r.usageId||'');
+        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value});
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
         const rawPrice = document.getElementById('esp-price').value.trim();
@@ -1273,10 +1273,10 @@ const APP = {
         this.closeModal('modal-edit-opcode'); this.loadOpCode();
         if(sync) this.loadCodeRec();
       } else if(type==='coderec') {
-        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value}, r.usageId||'');
+        await SHEETS.updateCodeRec(r._row,{name:document.getElementById('ecr-name').value,code:document.getElementById('ecr-code').value,date:document.getElementById('ecr-date').value,price:document.getElementById('ecr-price').value,qty:document.getElementById('ecr-qty').value,area:document.getElementById('ecr-area').value});
         this.closeModal('modal-edit-coderec'); this.loadCodeRec();
       } else if(type==='clinic') {
-        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value}, r.usageId||'');
+        await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value});
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
       this.toast('✅ 已更新');
@@ -1287,14 +1287,10 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','K'],track:['A','K'],mat:['A','H'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','F']};
+    const colMap={sx:['A','K'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
     const cacheMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
     const uidMap={
-      sx:      { col:10, range:'A2:K500' },
-      track:   { col:10, range:'A2:K500' },
-      mat:     { col:5,  range:'A2:H500' },
-      coderec: { col:6,  range:'A2:H500' },
-      clinic:  { col:4,  range:'A2:F500' },
+      sx: { col:10, range:'A2:K500' },
     };
     try {
       const tab=SHEETS.T[tabMap[type]], cols=colMap[type];
