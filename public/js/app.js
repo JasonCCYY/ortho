@@ -729,7 +729,7 @@ const APP = {
 
   // ── Refresh ──
   refresh() {
-    const cacheMap = { sxList:'op', track:'track', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec', estimate:'estimate', clinic:'clinic2' };
+    const cacheMap = { sxList:'op', track:'track', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
     if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
@@ -1289,7 +1289,7 @@ const APP = {
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
     const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
-    const cacheMap={sx:'op',track:'track',mat:'matRec2',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic2'};
+    const cacheMap={sx:'op',track:'track',mat:'matRec2',selfpay:'matProd',opcode:'opCode',coderec:'codeRec2',clinic:'clinic2'};
     const uidMap={};
     try {
       const tab=SHEETS.T[tabMap[type]], cols=colMap[type];

@@ -190,7 +190,7 @@ const SHEETS = {
         area:r[4]||'', qty:r[5]||'', todayNew:r[6]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
-    return this.cached('codeRec', load);
+    return this.cached('codeRec2', load);
   },
 
   async loadEstimate() {
@@ -293,7 +293,7 @@ const SHEETS = {
       for (const u of updates) {
         await this.put(this.T.codeRec+'!C'+u.row, [[u.price]]);
       }
-      localStorage.removeItem('ortho_codeRec');
+      localStorage.removeItem('ortho_codeRec2');
     }
   },
 
@@ -328,7 +328,7 @@ const SHEETS = {
 
   async updateCodeRec(row, d) {
     await this.put(this.T.codeRec+'!A'+row+':F'+row, [[d.date,d.name,d.price,d.code,d.area,d.qty]]);
-    localStorage.removeItem('ortho_codeRec');
+    localStorage.removeItem('ortho_codeRec2');
   },
 
   async updateClinicRec(row, d) {
@@ -360,12 +360,12 @@ const SHEETS = {
 
   async addCode(d) {
     const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,'']]);
-    localStorage.removeItem('ortho_codeRec'); return r;
+    localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddCode(d) {
     const r = await this.append(this.T.codeRec, [[this.nowMonth(),d.name,d.price,d.code,d.area,'1','TRUE']]);
-    localStorage.removeItem('ortho_codeRec'); return r;
+    localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddClinic(name, price) {
