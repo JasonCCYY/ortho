@@ -19,7 +19,14 @@ const SHEETS = {
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
 
   // ── Cache helpers ──
+  _CACHE_VER: 'v2',  // 欄位結構異動時遞增，強制清除所有舊快取
   _STALE_TTL: 30 * 60 * 1000,  // 30 分鐘：超過視為 stale，返回快取並強制背景刷新
+  initCache() {
+    if (localStorage.getItem('ortho_cacheVer') !== this._CACHE_VER) {
+      Object.keys(localStorage).filter(k => k.startsWith('ortho_')).forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('ortho_cacheVer', this._CACHE_VER);
+    }
+  },
   saveCache(key, data) {
     try { localStorage.setItem('ortho_' + key, JSON.stringify({ t: Date.now(), d: data })); } catch(e) {}
   },

@@ -11,6 +11,7 @@ const APP = {
   // ── Init ──
   async init() {
     console.log('[APP] init start');
+    SHEETS.initCache();
     document.getElementById('loading').style.display = 'flex';
     try {
       await AUTH.init();
