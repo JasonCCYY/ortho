@@ -77,6 +77,14 @@ const APP = {
   },
   // 去掉所有非數字／小數點（給 type="number" 用）
   cleanNum(s) { return String(s||'').replace(/[^0-9.]/g,''); },
+  bumpMonth(inputId) {
+    const el = document.getElementById(inputId);
+    const m = String(el.value||'').trim().match(/^(\d{4})[\/\-](\d{1,2})$/);
+    if (!m) return;
+    let y = parseInt(m[1]), mo = parseInt(m[2]);
+    mo++; if (mo > 12) { mo = 1; y++; }
+    el.value = `${y}/${String(mo).padStart(2,'0')}`;
+  },
 
   loading() { return '<div class="load-msg">載入中...</div>'; },
   empty()   { return '<div class="empty-state"><div class="empty-icon">📋</div><div>尚無紀錄</div></div>'; },
