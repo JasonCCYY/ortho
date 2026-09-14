@@ -370,7 +370,7 @@
   <div class="modal-handle"></div><div class="modal-title">修改代碼紀錄</div>
   <div class="fg"><label class="fg-label">術式</label><input class="f-input" type="text" id="ecr-name"></div>
   <div class="fg"><label class="fg-label">代碼</label><input class="f-input" type="text" id="ecr-code"></div>
-  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="text" id="ecr-date"></div>
+  <div class="fg"><label class="fg-label">日期</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="ecr-date" style="flex:1"><button type="button" class="btn-next-month" onclick="APP.bumpMonth('ecr-date')">下個月</button></div></div>
   <div class="fg-row">
     <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="ecr-price"></div>
     <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="ecr-qty" min="1"></div>
