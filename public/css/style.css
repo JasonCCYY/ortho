@@ -107,7 +107,8 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .badge-Spine  {background:rgba(22,163,74,.12); color:#15803d;border:1px solid rgba(22,163,74,.22)}
 .badge-Hand   {background:rgba(147,51,234,.12);color:#7e22ce;border:1px solid rgba(147,51,234,.22)}
 .badge-Tumor  {background:rgba(220,38,38,.12); color:#b91c1c;border:1px solid rgba(220,38,38,.22)}
-.badge-ROI    {background:rgba(100,116,139,.12);color:#475569;border:1px solid rgba(100,116,139,.22)}
+.badge-ROI       {background:rgba(100,116,139,.12);color:#475569;border:1px solid rgba(100,116,139,.22)}
+.badge-Infection {background:rgba(20,184,166,.12); color:#0f766e;border:1px solid rgba(20,184,166,.22)}
 
 /* List content — one scrollable container per page */
 .list-content{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;display:block}
