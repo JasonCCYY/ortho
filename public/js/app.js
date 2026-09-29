@@ -1310,8 +1310,8 @@ const APP = {
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
       this.toast('✅ 已更新');
-    } catch(e) { this.toast('❌ '+e.message); this._unlockSaveBtn(btn); }
-    finally { this._savingEdit = false; }
+    } catch(e) { this.toast('❌ '+e.message); }
+    finally { this._savingEdit = false; this._unlockSaveBtn(btn); }
   },
 
   async deleteDetail() {
@@ -1403,8 +1403,8 @@ const APP = {
       document.getElementById('s-area-val').value='中正';
       if(document.getElementById('s-clinicid-wrap')) document.getElementById('s-clinicid-wrap').style.display='none';
     }
-    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
-    finally{this._savingOp = false;}
+    catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingOp = false; this._unlockSaveBtn(btn);}
   },
   async saveTrack() {
     if(this._savingTrack) return;
@@ -1432,8 +1432,8 @@ const APP = {
       document.getElementById('tk-area-val').value='中正';
       if(document.getElementById('tk-clinicid-wrap')) document.getElementById('tk-clinicid-wrap').style.display='none';
     }
-    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
-    finally{this._savingTrack = false;}
+    catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingTrack = false; this._unlockSaveBtn(btn);}
   },
   async saveMat() {
     if(this._savingMat) return; this._savingMat=true;
@@ -1441,8 +1441,8 @@ const APP = {
     const d={date:document.getElementById('m-date').value.replace(/-/g,'/'),brand:document.getElementById('m-brand').value.trim(),product:document.getElementById('m-product').value.trim(),qty:document.getElementById('m-qty').value,price:document.getElementById('m-price').value};
     if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingMat=false;return;}
     try{await SHEETS.addMat(d);this.closeModal('modal-mat');this.toast('✅ 已儲存');this.loadMatRec();}
-    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
-    finally{this._savingMat=false;}
+    catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingMat=false; this._unlockSaveBtn(btn);}
   },
   async saveCode() {
     if(this._savingCode) return; this._savingCode=true;
@@ -1450,8 +1450,8 @@ const APP = {
     const d={date:document.getElementById('c-date').value.replace(/-/g,'/'),name:document.getElementById('c-name').value.trim(),code:document.getElementById('c-code').value.trim(),price:document.getElementById('c-price').value,qty:document.getElementById('c-qty').value,area:document.getElementById('c-area').value};
     if(!d.date||!d.code){this.toast('請填入日期和代碼');this._unlockSaveBtn(btn);this._savingCode=false;return;}
     try{await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();}
-    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
-    finally{this._savingCode=false;}
+    catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingCode=false; this._unlockSaveBtn(btn);}
   },
   async saveCli() {
     if(this._savingCli) return; this._savingCli=true;
@@ -1459,8 +1459,8 @@ const APP = {
     const d={date:document.getElementById('cl-date').value.replace(/-/g,'/'),product:document.getElementById('cl-product').value,price:document.getElementById('cl-price').value,qty:document.getElementById('cl-qty').value};
     if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingCli=false;return;}
     try{await SHEETS.addClinic(d);this.closeModal('modal-cli');this.toast('✅ 已儲存');this.loadClinic();}
-    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
-    finally{this._savingCli=false;}
+    catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingCli=false; this._unlockSaveBtn(btn);}
   },
 
 
