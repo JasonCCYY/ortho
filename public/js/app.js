@@ -1257,8 +1257,21 @@ const APP = {
     } catch(e) { console.error('openEdit error:', e); this.toast('⚠️ 開啟修改失敗: '+e.message); }
   },
 
+  _lockSaveBtn(modalId) {
+    const btn = document.querySelector(`#${modalId} .btn-save`);
+    if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
+    return btn;
+  },
+  _unlockSaveBtn(btn) {
+    if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
+  },
+
   async saveEdit() {
+    if (this._savingEdit) return;
+    this._savingEdit = true;
     const type=this._detailType, r=this._detailData;
+    const modalMap={sx:'modal-edit-sx',track:'modal-edit-track',mat:'modal-edit-mat',selfpay:'modal-edit-selfpay',opcode:'modal-edit-opcode',coderec:'modal-edit-coderec',clinic:'modal-edit-clinic'};
+    const btn = this._lockSaveBtn(modalMap[type]||'');
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
@@ -1296,7 +1309,8 @@ const APP = {
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
       this.toast('✅ 已更新');
-    } catch(e) { this.toast('❌ '+e.message); }
+    } catch(e) { this.toast('❌ '+e.message); this._unlockSaveBtn(btn); }
+    finally { this._savingEdit = false; }
   },
 
   async deleteDetail() {
@@ -1355,10 +1369,11 @@ const APP = {
 
   // ── New record save ──
   async saveOp() {
-    if(this._savingOp) return; // prevent double submit
+    if(this._savingOp) return;
     const d={date:document.getElementById('s-date').value.replace(/-/g,'/'),area:document.getElementById('s-area-val').value,mrn:document.getElementById('s-mrn').value.trim(),clinicId:document.getElementById('s-clinicid')?.value.trim()||'',name:document.getElementById('s-name').value.trim(),type:document.getElementById('s-type-val').value,opName:document.getElementById('s-opname').value,location:document.getElementById('s-location').value.trim(),implant:document.getElementById('s-bone-val').value,note:document.getElementById('s-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
     this._savingOp = true;
+    const btn=this._lockSaveBtn('modal-op');
     const scanIdx = this._scanEditIdx ?? null;
     this._scanEditIdx = null;
     try{
@@ -1387,14 +1402,15 @@ const APP = {
       document.getElementById('s-area-val').value='中正';
       if(document.getElementById('s-clinicid-wrap')) document.getElementById('s-clinicid-wrap').style.display='none';
     }
-    catch(e){this.toast('❌ '+e.message);}
+    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
     finally{this._savingOp = false;}
   },
   async saveTrack() {
-    if(this._savingTrack) return; // prevent double submit
+    if(this._savingTrack) return;
     const d={date:document.getElementById('tk-date').value.replace(/-/g,'/'),area:document.getElementById('tk-area-val').value,mrn:document.getElementById('tk-mrn').value.trim(),clinicId:document.getElementById('tk-clinicid')?.value.trim()||'',name:document.getElementById('tk-name').value.trim(),type:document.getElementById('tk-type-val').value,opName:document.getElementById('tk-opname').value.trim(),location:document.getElementById('tk-loc').value.trim(),implant:document.getElementById('tk-bone-val')?.value||'',note:document.getElementById('tk-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
     this._savingTrack = true;
+    const btn=this._lockSaveBtn('modal-track');
     try{
       await SHEETS.addTrack(d);
       this.closeModal('modal-track');
@@ -1415,26 +1431,35 @@ const APP = {
       document.getElementById('tk-area-val').value='中正';
       if(document.getElementById('tk-clinicid-wrap')) document.getElementById('tk-clinicid-wrap').style.display='none';
     }
-    catch(e){this.toast('❌ '+e.message);}
+    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
     finally{this._savingTrack = false;}
   },
   async saveMat() {
+    if(this._savingMat) return; this._savingMat=true;
+    const btn=this._lockSaveBtn('modal-mat');
     const d={date:document.getElementById('m-date').value.replace(/-/g,'/'),brand:document.getElementById('m-brand').value.trim(),product:document.getElementById('m-product').value.trim(),qty:document.getElementById('m-qty').value,price:document.getElementById('m-price').value};
-    if(!d.date||!d.product){this.toast('請填入日期和產品');return;}
+    if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingMat=false;return;}
     try{await SHEETS.addMat(d);this.closeModal('modal-mat');this.toast('✅ 已儲存');this.loadMatRec();}
-    catch(e){this.toast('❌ '+e.message);}
+    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
+    finally{this._savingMat=false;}
   },
   async saveCode() {
+    if(this._savingCode) return; this._savingCode=true;
+    const btn=this._lockSaveBtn('modal-code');
     const d={date:document.getElementById('c-date').value.replace(/-/g,'/'),name:document.getElementById('c-name').value.trim(),code:document.getElementById('c-code').value.trim(),price:document.getElementById('c-price').value,qty:document.getElementById('c-qty').value,area:document.getElementById('c-area').value};
-    if(!d.date||!d.code){this.toast('請填入日期和代碼');return;}
+    if(!d.date||!d.code){this.toast('請填入日期和代碼');this._unlockSaveBtn(btn);this._savingCode=false;return;}
     try{await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();}
-    catch(e){this.toast('❌ '+e.message);}
+    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
+    finally{this._savingCode=false;}
   },
   async saveCli() {
+    if(this._savingCli) return; this._savingCli=true;
+    const btn=this._lockSaveBtn('modal-cli');
     const d={date:document.getElementById('cl-date').value.replace(/-/g,'/'),product:document.getElementById('cl-product').value,price:document.getElementById('cl-price').value,qty:document.getElementById('cl-qty').value};
-    if(!d.date||!d.product){this.toast('請填入日期和產品');return;}
+    if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingCli=false;return;}
     try{await SHEETS.addClinic(d);this.closeModal('modal-cli');this.toast('✅ 已儲存');this.loadClinic();}
-    catch(e){this.toast('❌ '+e.message);}
+    catch(e){this.toast('❌ '+e.message);this._unlockSaveBtn(btn);}
+    finally{this._savingCli=false;}
   },
 
 

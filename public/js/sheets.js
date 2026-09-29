@@ -266,8 +266,8 @@ const SHEETS = {
   },
 
   async updateMatRow(row, d) {
-    await this.put(this.T.matRec+'!A'+row+':E'+row, [[d.date,d.brand,d.product,d.price,d.qty]]);
-    if (d.done !== undefined) await this.put(this.T.matRec+'!F'+row, [[d.done]]);
+    const done = d.done !== undefined ? d.done : '';
+    await this.put(this.T.matRec+'!A'+row+':F'+row, [[d.date,d.brand,d.product,d.price,d.qty,done]]);
     localStorage.removeItem('ortho_matRec2');
   },
 
