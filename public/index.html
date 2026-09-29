@@ -330,7 +330,7 @@
   <div class="fg"><label class="fg-label">日期</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="em-date" style="flex:1"><button type="button" class="btn-next-month" onclick="APP.bumpMonth('em-date')">下個月</button></div></div>
   <div class="fg-row">
     <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="em-price"></div>
-    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="em-qty" min="1"></div>
+    <div class="fg"><label class="fg-label">數量</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="number" id="em-qty" min="1" style="flex:1"><button type="button" class="btn-next-month" onclick="const e=document.getElementById('em-qty');e.value=(parseInt(e.value)||0)+1">+1</button></div></div>
   </div>
   <div class="fg">
     <label class="fg-label">Done</label>
