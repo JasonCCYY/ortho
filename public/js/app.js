@@ -756,6 +756,7 @@ const APP = {
 
   // ── Surgery ──
   async loadSurgery() {
+    this._clearStore();
     const el = document.getElementById('sx-list-body');
     el.innerHTML = this.loading();
     try {
@@ -802,6 +803,7 @@ const APP = {
 
   // ── Track ──
   async loadTrack() {
+    this._clearStore();
     const el = document.getElementById('track-list-body');
     el.innerHTML = this.loading();
     try {
@@ -849,6 +851,7 @@ const APP = {
 
   // ── Material Records ──
   async loadMatRec() {
+    this._clearStore();
     const el = document.getElementById('mat-rec-list');
     el.innerHTML = this.loading();
     try {
@@ -887,6 +890,7 @@ const APP = {
 
   // ── Self-pay ──
   async loadSelfPay() {
+    this._clearStore();
     const el = document.getElementById('selfpay-list');
     el.innerHTML = this.loading();
     try {
@@ -929,6 +933,7 @@ const APP = {
 
   // ── OP Code ──
   async loadOpCode() {
+    this._clearStore();
     const el = document.getElementById('opcode-list');
     el.innerHTML = this.loading();
     try {
@@ -964,6 +969,7 @@ const APP = {
 
   // ── Code Records ──
   async loadCodeRec() {
+    this._clearStore();
     const el = document.getElementById('code-rec-list');
     el.innerHTML = this.loading();
     try {
@@ -1002,6 +1008,7 @@ const APP = {
 
   // ── Estimate — transposed: rows=labels, cols=months ──
   async loadEstimate() {
+    this._clearStore();
     const thead = document.getElementById('est-thead');
     const tbody = document.getElementById('est-tbody');
     tbody.innerHTML = `<tr><td colspan="10" class="load-msg">載入中...</td></tr>`;
@@ -1046,6 +1053,7 @@ const APP = {
 
   // ── Clinic — sorted by clinicProducts order ──
   async loadClinic() {
+    this._clearStore();
     const el = document.getElementById('clinic-content');
     el.innerHTML = this.loading();
     try {
