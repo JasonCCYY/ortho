@@ -746,6 +746,7 @@ const APP = {
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
     if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
+    SHEETS.loadCategories().catch(()=>{});
     if(this.tab==='surgery') this.switchSx(this.subSx);
     else if(this.tab==='material') this.switchMat(this.subMat);
     else this.loadClinic();
