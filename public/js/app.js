@@ -966,8 +966,8 @@ const APP = {
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
             <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:26px;flex-shrink:0" onclick="event.stopPropagation()">
-              <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="新增到代碼紀錄">＋</button>
-              <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="第二術式（減半）">½</button>
+              <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="新增到代碼紀錄">＋</button>
+              <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="第二術式（減半）">½</button>
             </div>
             ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
@@ -984,14 +984,10 @@ const APP = {
     const el = document.getElementById('code-rec-list');
     el.innerHTML = this.loading();
     try {
-      const [recs, opCodes] = await Promise.all([SHEETS.loadCodeRecords(), SHEETS.loadOpCodes()]);
+      let recs = await SHEETS.loadCodeRecords();
       if(!recs.length) { el.innerHTML = this.empty(); return; }
       const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
       const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
-      // Build type lookup by code (strip * for lookup)
-      const typeMap = {};
-      opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
-      const getType = code => typeMap[code] || typeMap[(code||'').replace('*','')] || '';
       let html = '';
       this.groupByMonth(recs).forEach(([m,rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
@@ -1003,18 +999,17 @@ const APP = {
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
           const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
           if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
-          const tr=typeRankCR(getType(a.code))-typeRankCR(getType(b.code));
+          const tr=typeRankCR(a.type)-typeRankCR(b.type);
           if(tr!==0) return tr;
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
           const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          const t=getType(r.code);
           const _si=APP._storeRow(r);
           const tagHtml = r.area==='右昌'
             ? `<span class="col-area">右昌</span>`
-            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'');
+            : (r.type?`<span class="badge badge-${r.type}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${r.type}</span>`:'');
           html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
             ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
             <span class="col-product" title="${r.name}">${r.name}</span>
@@ -1145,13 +1140,13 @@ const APP = {
     try { await SHEETS.quickAddMat(brand, product, price); this.toast(`✅ 已新增 ${product}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCode(name, code, price, area) {
-    try { await SHEETS.quickAddCode({name,code,price,area}); this.toast(`✅ 已新增 ${name}`); }
+  async qAddCode(name, code, price, area, type='') {
+    try { await SHEETS.quickAddCode({name,code,price,area,type}); this.toast(`✅ 已新增 ${name}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCodeHalf(name, code, price, area) {
+  async qAddCodeHalf(name, code, price, area, type='') {
     const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
-    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area}); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddClinic(name, price) {
@@ -1354,7 +1349,7 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
+    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','E']};
     const cacheMap={sx:'op',track:'track',mat:'matRec2',selfpay:'matProd',opcode:'opCode',coderec:'codeRec2',clinic:'clinic2'};
     const uidMap={};
     try {
@@ -1485,9 +1480,32 @@ const APP = {
     const btn=this._lockSaveBtn('modal-code');
     const d={date:document.getElementById('c-date').value.replace(/-/g,'/'),name:document.getElementById('c-name').value.trim(),code:document.getElementById('c-code').value.trim(),price:document.getElementById('c-price').value,qty:document.getElementById('c-qty').value,area:document.getElementById('c-area').value};
     if(!d.date||!d.code){this.toast('請填入日期和代碼');this._unlockSaveBtn(btn);this._savingCode=false;return;}
-    try{await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();}
+    try{
+      const opCodes = await SHEETS.loadOpCodes();
+      const match = opCodes.find(r=>r.code===d.code) || opCodes.find(r=>r.code===d.code.replace('*',''));
+      d.type = match?.type||'';
+      await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();
+    }
     catch(e){this.toast('❌ '+e.message);}
     finally{this._savingCode=false; this._unlockSaveBtn(btn);}
+  },
+  // 一次性工具：回填舊代碼紀錄的類型欄位（G欄）
+  async backfillCodeRecTypes() {
+    const [opCodes, recs] = await Promise.all([SHEETS.loadOpCodes(), SHEETS.read(SHEETS.T.codeRec,'A2:H500')]);
+    const typeMap = {};
+    opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type||''; });
+    let updated = 0;
+    for(let i=0;i<recs.length;i++){
+      const row=recs[i]; if(!row[0]) continue;
+      if(row[6]) continue; // already has type
+      const code=(row[3]||'').trim();
+      const t = typeMap[code] || typeMap[code.replace('*','')] || '';
+      if(!t) continue;
+      await SHEETS.put(SHEETS.T.codeRec+'!G'+(i+2), [[t]]);
+      updated++;
+    }
+    localStorage.removeItem('ortho_codeRec2');
+    this.toast(`✅ 已回填 ${updated} 筆類型`);
   },
   async saveCli() {
     if(this._savingCli) return; this._savingCli=true;

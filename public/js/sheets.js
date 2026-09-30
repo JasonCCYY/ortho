@@ -184,10 +184,10 @@ const SHEETS = {
 
   async loadCodeRecords() {
     const load = async () => {
-      const rows = await this.read(this.T.codeRec, 'A2:G500');
+      const rows = await this.read(this.T.codeRec, 'A2:H500');
       return rows.filter(r=>r[0]).map((r,i)=>({
         _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-        area:r[4]||'', qty:r[5]||'', todayNew:r[6]||''
+        area:r[4]||'', qty:r[5]||'', type:r[6]||'', todayNew:r[7]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
@@ -283,7 +283,7 @@ const SHEETS = {
     // 同步更新代碼紀錄中相同代碼的價格
     if (syncPrices && d.code && d.price) {
       const cleanP = String(d.price).replace(/,/g,'');
-      const recs = await this.read(this.T.codeRec, 'A2:G500');
+      const recs = await this.read(this.T.codeRec, 'A2:H500');
       const updates = [];
       for (let i = 0; i < recs.length; i++) {
         if ((recs[i][3]||'').trim() === String(d.code).trim()) {
@@ -359,12 +359,12 @@ const SHEETS = {
   },
 
   async addCode(d) {
-    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,'']]);
+    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,d.type||'','']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddCode(d) {
-    const r = await this.append(this.T.codeRec, [[this.nowMonth(),d.name,d.price,d.code,d.area,'1','TRUE']]);
+    const r = await this.append(this.T.codeRec, [[this.nowMonth(),d.name,d.price,d.code,d.area,'1',d.type||'','TRUE']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
