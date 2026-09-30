@@ -958,7 +958,7 @@ const APP = {
           html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
-            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
+            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:16px;flex-shrink:0" onclick="event.stopPropagation()">
               <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="新增到代碼紀錄">＋</button>
               <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="第二術式（減半）">½</button>
             </div>
