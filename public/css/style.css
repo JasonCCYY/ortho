@@ -135,6 +135,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .col-price  {width:84px;text-align:right;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;font-size:.95rem;color:var(--green);font-weight:700;letter-spacing:-.01em;flex-shrink:0}
 .col-code   {width:52px;font-family:'JetBrains Mono',monospace;font-size:.82rem;color:var(--muted);flex-shrink:0}
 .col-area   {width:38px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
+.col-type   {width:68px;text-align:right;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end}
 .col-hosp   {width:36px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
 .col-date   {width:44px;font-size:.83rem;color:var(--txt2);flex-shrink:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;letter-spacing:-.01em}
 

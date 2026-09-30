@@ -1007,16 +1007,16 @@ const APP = {
           const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const _si=APP._storeRow(r);
-          const tagHtml = r.area==='右昌'
-            ? `<span class="col-area">右昌</span>`
-            : (r.type?`<span class="badge badge-${r.type}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${r.type}</span>`:'');
+          const tagInner = r.area==='右昌'
+            ? `<span class="col-area" style="width:auto">右昌</span>`
+            : (r.type?`<span class="badge badge-${r.type}" style="font-size:.68rem;padding:1px 6px">${r.type}</span>`:'');
           html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
             ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
             <span class="col-product" title="${r.name}">${r.name}</span>
             <span class="col-code">${r.code}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             <span class="col-qty">${r.qty}</span>
-            ${tagHtml}
+            <span class="col-type">${tagInner}</span>
           </div>`;
         });
       });
