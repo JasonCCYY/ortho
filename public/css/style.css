@@ -148,6 +148,8 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 /* Add center button */
 .add-center-btn{flex-shrink:0;width:32px;height:32px;border:1.5px solid var(--acc-bd);background:var(--acc-lt);color:var(--accent);border-radius:50%;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .add-center-btn:active{background:var(--accent);color:white;transform:scale(.9)}
+.add-half-btn{border-color:rgba(156,163,175,.5);background:rgba(156,163,175,.1);color:#6b7280;font-size:.85rem}
+.add-half-btn:active{background:#6b7280;color:white;transform:scale(.9)}
 
 /* Done button + invisible placeholder */
 .done-btn{flex-shrink:0;width:32px;height:32px;border:1.5px solid var(--acc-bd);background:var(--acc-lt);color:var(--accent);border-radius:var(--r-sm);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center}
