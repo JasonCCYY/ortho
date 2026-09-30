@@ -937,6 +937,8 @@ const APP = {
     const el = document.getElementById('opcode-list');
     el.innerHTML = this.loading();
     try {
+      const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
       let items = await SHEETS.loadOpCodes();
       if(!items.length) { el.innerHTML = this.empty(); return; }
       const areaOrder = ['中正','右昌'];
@@ -950,7 +952,11 @@ const APP = {
       });
       let html = '';
       sortedAreas.forEach(area => {
-        const rows = groups[area].sort((a,b)=>parseInt(a.code||0)-parseInt(b.code||0));
+        const rows = groups[area].sort((a,b)=>{
+          const tr=typeRank(a.type)-typeRank(b.type);
+          if(tr!==0) return tr;
+          return parseInt(a.code||0)-parseInt(b.code||0);
+        });
         html += `<div class="list-group-hdr">${area}</div>`;
         rows.forEach(r => {
           const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
@@ -980,6 +986,8 @@ const APP = {
     try {
       const [recs, opCodes] = await Promise.all([SHEETS.loadCodeRecords(), SHEETS.loadOpCodes()]);
       if(!recs.length) { el.innerHTML = this.empty(); return; }
+      const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
       // Build type lookup by code (strip * for lookup)
       const typeMap = {};
       opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
@@ -995,6 +1003,8 @@ const APP = {
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
           const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
           if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
+          const tr=typeRankCR(getType(a.code))-typeRankCR(getType(b.code));
+          if(tr!==0) return tr;
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
@@ -1002,13 +1012,16 @@ const APP = {
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const t=getType(r.code);
           const _si=APP._storeRow(r);
+          const tagHtml = r.area==='右昌'
+            ? `<span class="col-area">右昌</span>`
+            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'');
           html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
             ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
             <span class="col-product" title="${r.name}">${r.name}</span>
             <span class="col-code">${r.code}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             <span class="col-qty">${r.qty}</span>
-            ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:`<span class="col-area">${r.area}</span>`}
+            ${tagHtml}
           </div>`;
         });
       });
