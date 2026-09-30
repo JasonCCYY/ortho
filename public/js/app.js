@@ -939,21 +939,22 @@ const APP = {
     try {
       let items = await SHEETS.loadOpCodes();
       if(!items.length) { el.innerHTML = this.empty(); return; }
-      // Collect type order from sheet first-appearance order
-      const typeOrder = [];
-      const typeGroups = {};
-      items.forEach(r => {
-        const t = r.type || '其他';
-        if(!typeOrder.includes(t)) typeOrder.push(t);
-        (typeGroups[t] = typeGroups[t] || []).push(r);
+      const areaOrder = ['中正','右昌'];
+      const groups = {};
+      items.forEach(r => { const a=r.area||'通用'; (groups[a]=groups[a]||[]).push(r); });
+      const sortedAreas = Object.keys(groups).sort((a,b)=>{
+        const ai=areaOrder.indexOf(a), bi=areaOrder.indexOf(b);
+        if(ai>=0&&bi>=0) return ai-bi;
+        if(ai>=0) return -1; if(bi>=0) return 1;
+        return a.localeCompare(b,'zh-TW');
       });
       let html = '';
-      typeOrder.forEach(t => {
-        const rows = typeGroups[t] || [];
-        if(!rows.length) return;
-        html += `<div class="list-group-hdr"><span class="badge badge-${t}" style="font-size:.75rem;padding:2px 8px">${t}</span></div>`;
+      sortedAreas.forEach(area => {
+        const rows = groups[area].sort((a,b)=>parseInt(a.code||0)-parseInt(b.code||0));
+        html += `<div class="list-group-hdr">${area}</div>`;
         rows.forEach(r => {
           const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
+          const t = r.type || '';
           const _si=APP._storeRow(r);
           html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
@@ -962,6 +963,7 @@ const APP = {
               <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="新增到代碼紀錄">＋</button>
               <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="第二術式（減半）">½</button>
             </div>
+            ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
           </div>`;
         });
@@ -980,24 +982,19 @@ const APP = {
       if(!recs.length) { el.innerHTML = this.empty(); return; }
       // Build type lookup by code (strip * for lookup)
       const typeMap = {};
-      const typeOrder = [];
-      opCodes.forEach(r => {
-        if(r.code) typeMap[r.code] = r.type || '';
-        const t = r.type || '其他';
-        if(!typeOrder.includes(t)) typeOrder.push(t);
-      });
+      opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
       const getType = code => typeMap[code] || typeMap[(code||'').replace('*','')] || '';
       let html = '';
       this.groupByMonth(recs).forEach(([m,rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
+        const areaOrd=['中正','右昌'];
         const sorted=[...rows].sort((a,b)=>{
           const aN=a.todayNew?.toString().toUpperCase()==='TRUE';
           const bN=b.todayNew?.toString().toUpperCase()==='TRUE';
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
-          const tA=getType(a.code), tB=getType(b.code);
-          const tiA=typeOrder.indexOf(tA||'其他'), tiB=typeOrder.indexOf(tB||'其他');
-          if(tiA!==tiB) return tiA-tiB;
+          const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
+          if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
