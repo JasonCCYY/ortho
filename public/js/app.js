@@ -984,8 +984,11 @@ const APP = {
     const el = document.getElementById('code-rec-list');
     el.innerHTML = this.loading();
     try {
-      let recs = await SHEETS.loadCodeRecords();
+      const [recs, opCodes] = await Promise.all([SHEETS.loadCodeRecords(), SHEETS.loadOpCodes()]);
       if(!recs.length) { el.innerHTML = this.empty(); return; }
+      const typeMap = {};
+      opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
+      const resolveType = r => r.type || typeMap[r.code] || typeMap[(r.code||'').replace('*','')] || '';
       const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
       const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
       let html = '';
@@ -999,17 +1002,18 @@ const APP = {
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
           const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
           if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
-          const tr=typeRankCR(a.type)-typeRankCR(b.type);
+          const tr=typeRankCR(resolveType(a))-typeRankCR(resolveType(b));
           if(tr!==0) return tr;
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
           const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
+          const t=resolveType(r);
           const _si=APP._storeRow(r);
           const tagInner = r.area==='右昌'
             ? `<span class="col-area" style="width:auto">右昌</span>`
-            : (r.type?`<span class="badge badge-${r.type}" style="font-size:.68rem;padding:1px 6px">${r.type}</span>`:'');
+            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px">${t}</span>`:'');
           html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
             ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
             <span class="col-product" title="${r.name}">${r.name}</span>
