@@ -587,7 +587,7 @@ const APP = {
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
       }
 
       this.toast(`✅ ${p.name} 已新增`);
@@ -1417,7 +1417,7 @@ const APP = {
       if(scanIdx !== null) {
         const sp = this._scanPatients?.[scanIdx];
         for(const c of (sp?.matchedCodes || [])) {
-          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
+          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
         }
       }
       this.closeModal('modal-op');
