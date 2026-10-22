@@ -506,7 +506,7 @@ const APP = {
               <span class="scan-name">${p.name || '（無姓名）'}</span>
               <span class="scan-mrn">${p.mrn ? ' · ' + p.mrn : ''}</span>
             </div>
-            <span class="scan-date">${p.date}</span>
+            <span class="scan-date" title="點擊修改日期" onclick="APP.scanDateEdit(${idx},this)">${p.date}</span>
           </div>
           ${typeFromCode ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:6px"><span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span></div>` : ''}`;
 
@@ -556,6 +556,32 @@ const APP = {
     } catch(e) {
       document.getElementById('scan-status').textContent = '❌ ' + e.message;
     }
+  },
+
+  scanDateEdit(idx, el) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    // convert YYYY/MM/DD → YYYY-MM-DD for input[type=date]
+    const isoVal = (p.date || '').replace(/\//g, '-');
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = isoVal;
+    input.style.cssText = 'font-size:.82rem;padding:2px 6px;border-radius:20px;border:1px solid var(--accent);background:var(--elevated);color:var(--txt);width:130px';
+    el.replaceWith(input);
+    input.focus();
+    const commit = () => {
+      const v = input.value; // YYYY-MM-DD or empty
+      const display = v ? v.replace(/-/g, '/') : p.date;
+      if(v) this._scanPatients[idx].date = display;
+      const span = document.createElement('span');
+      span.className = 'scan-date';
+      span.title = '點擊修改日期';
+      span.textContent = this._scanPatients[idx].date;
+      span.onclick = () => APP.scanDateEdit(idx, span);
+      input.replaceWith(span);
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('blur', commit);
   },
 
   async scanConfirm(idx) {
