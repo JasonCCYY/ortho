@@ -466,10 +466,14 @@ const APP = {
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
       const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
+      const boneItems = [
+        ...(SHEETS.boneCats||[]).map(c => c.bone),
+        ...(SHEETS.growthFactors||[]),
+      ].filter(Boolean);
       const res = await fetch('/api/parse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, opNames }),
+        body: JSON.stringify({ images, opNames, boneItems }),
       });
       console.log('[scan] response status:', res.status);
       const data = await res.json();
@@ -522,6 +526,9 @@ const APP = {
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
+        }
+        if(p.implants && p.implants.length) {
+          html += `<div class="scan-note" style="color:var(--accent)">骨材：${p.implants.join('、')}</div>`;
         }
 
         if(matchedCodes.length) {
@@ -678,6 +685,13 @@ const APP = {
         this.updateOpDropdowns(typeFromCode);
         if(p.opName) document.getElementById('s-opname').value = p.opName;
         if(p.location) document.getElementById('s-location').value = p.location;
+      }
+      // 自動勾選骨材/生長因子
+      if(p.implants && p.implants.length) {
+        document.querySelectorAll('#s-bone-wrap .bone-toggle').forEach(btn => {
+          if(p.implants.includes(btn.dataset.val)) btn.classList.add('on');
+        });
+        this.updateBoneVal();
       }
     }, 50);
   },
