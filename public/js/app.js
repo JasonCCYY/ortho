@@ -501,6 +501,10 @@ const APP = {
         // 取類型（第一個有 type 的代碼）
         const typeFromCode = matchedCodes.map(c => c.type).find(t => t) || '';
 
+        // 用代碼術式名稱 token 比對 OP分類，精確度優於 Gemini 圖片辨識
+        const codeTerms = matchedCodes.filter(c => c.found).map(c => c.name);
+        p.opName = this._resolveOpName(codeTerms, p.opName || '');
+
         html += `<div class="scan-card" id="scan-card-${idx}">
           <div class="scan-card-hdr">
             <div>
@@ -557,6 +561,26 @@ const APP = {
     } catch(e) {
       document.getElementById('scan-status').textContent = '❌ ' + e.message;
     }
+  },
+
+  _resolveOpName(codeNames, fallback) {
+    const cats = (SHEETS.opCats || []).map(c => c.name);
+    if (!cats.length) return fallback;
+    const tok = s => s.toLowerCase().replace(/[^a-z0-9一-鿿]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+    for (const cn of codeNames) {
+      const ct = new Set(tok(cn));
+      let best = null, bestLen = 0;
+      for (const cat of cats) {
+        const catTok = tok(cat);
+        // 所有 OP分類 token 都出現在代碼術式 token 中
+        if (catTok.length && catTok.every(t => ct.has(t)) && catTok.length > bestLen) {
+          bestLen = catTok.length;
+          best = cat;
+        }
+      }
+      if (best) return best;
+    }
+    return fallback;
   },
 
   scanDateEdit(idx, el) {
