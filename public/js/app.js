@@ -459,11 +459,12 @@ const APP = {
       const images = await Promise.all(files.map(toBase64));
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
-      // 送後端解析
+      // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
+      const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
       const res = await fetch('/api/parse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images }),
+        body: JSON.stringify({ images, opNames }),
       });
       console.log('[scan] response status:', res.status);
       const data = await res.json();
@@ -508,7 +509,7 @@ const APP = {
             </div>
             <span class="scan-date" title="點擊修改日期" onclick="APP.scanDateEdit(${idx},this)">${p.date}</span>
           </div>
-          ${typeFromCode ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:6px"><span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span></div>` : ''}`;
+          ${typeFromCode || p.opName ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${typeFromCode ? `<span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span>` : ''}${p.opName ? `<span style="font-size:.8rem;color:var(--muted)">手術</span><span style="font-size:.85rem;font-weight:600">${p.opName}</span>` : ''}</div>` : ''}`;
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
@@ -646,6 +647,7 @@ const APP = {
           c.classList.toggle('on', c.textContent.trim() === typeFromCode);
         });
         this.updateOpDropdowns(typeFromCode);
+        if(p.opName) document.getElementById('s-opname').value = p.opName;
       }
     }, 50);
   },
