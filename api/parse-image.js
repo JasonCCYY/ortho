@@ -87,6 +87,7 @@ ${opNames && opNames.length ? `
    - Rt = 右側, Lt = 左側, Bilateral = 雙側
 ${boneItems && boneItems.length ? `
 7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列
+   常見縮寫對照：I*1=Iconix、I*2=Iconix*2、I*3=Iconix*3、I寬=Iconix寬、漢森柏=漢森柏0.5
    清單: ${boneItems.join('、')}` : ''}
 
 只回傳JSON，不加任何說明文字：
