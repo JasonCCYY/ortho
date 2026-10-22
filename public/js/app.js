@@ -464,11 +464,12 @@ const APP = {
       const images = await Promise.all(files.map(toBase64));
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
-      // 送後端解析
+      // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
+      const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
       const res = await fetch('/api/parse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images }),
+        body: JSON.stringify({ images, opNames }),
       });
       console.log('[scan] response status:', res.status);
       const data = await res.json();
@@ -511,9 +512,9 @@ const APP = {
               <span class="scan-name">${p.name || '（無姓名）'}</span>
               <span class="scan-mrn">${p.mrn ? ' · ' + p.mrn : ''}</span>
             </div>
-            <span class="scan-date">${p.date}</span>
+            <span class="scan-date" title="點擊修改日期" onclick="APP.scanDateEdit(${idx},this)">${p.date}</span>
           </div>
-          ${typeFromCode ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:6px"><span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span></div>` : ''}`;
+          ${typeFromCode || p.opName || p.location ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${typeFromCode ? `<span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span>` : ''}${p.opName ? `<span style="font-size:.8rem;color:var(--muted)">手術</span><span style="font-size:.85rem;font-weight:600">${p.opName}</span>` : ''}${p.location ? `<span style="font-size:.8rem;color:var(--muted)">部位</span><span style="font-size:.85rem;font-weight:600">${p.location}</span>` : ''}</div>` : ''}`;
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
@@ -561,6 +562,32 @@ const APP = {
     } catch(e) {
       document.getElementById('scan-status').textContent = '❌ ' + e.message;
     }
+  },
+
+  scanDateEdit(idx, el) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    // convert YYYY/MM/DD → YYYY-MM-DD for input[type=date]
+    const isoVal = (p.date || '').replace(/\//g, '-');
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = isoVal;
+    input.style.cssText = 'font-size:.82rem;padding:2px 6px;border-radius:20px;border:1px solid var(--accent);background:var(--elevated);color:var(--txt);width:130px';
+    el.replaceWith(input);
+    input.focus();
+    const commit = () => {
+      const v = input.value; // YYYY-MM-DD or empty
+      const display = v ? v.replace(/-/g, '/') : p.date;
+      if(v) this._scanPatients[idx].date = display;
+      const span = document.createElement('span');
+      span.className = 'scan-date';
+      span.title = '點擊修改日期';
+      span.textContent = this._scanPatients[idx].date;
+      span.onclick = () => APP.scanDateEdit(idx, span);
+      input.replaceWith(span);
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('blur', commit);
   },
 
   async scanConfirm(idx) {
@@ -625,6 +652,8 @@ const APP = {
           c.classList.toggle('on', c.textContent.trim() === typeFromCode);
         });
         this.updateOpDropdowns(typeFromCode);
+        if(p.opName) document.getElementById('s-opname').value = p.opName;
+        if(p.location) document.getElementById('s-location').value = p.location;
       }
     }, 50);
   },
