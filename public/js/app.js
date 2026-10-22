@@ -509,7 +509,7 @@ const APP = {
             </div>
             <span class="scan-date" title="點擊修改日期" onclick="APP.scanDateEdit(${idx},this)">${p.date}</span>
           </div>
-          ${typeFromCode || p.opName ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${typeFromCode ? `<span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span>` : ''}${p.opName ? `<span style="font-size:.8rem;color:var(--muted)">手術</span><span style="font-size:.85rem;font-weight:600">${p.opName}</span>` : ''}</div>` : ''}`;
+          ${typeFromCode || p.opName || p.location ? `<div style="padding:0 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${typeFromCode ? `<span style="font-size:.8rem;color:var(--muted)">類型</span><span class="badge badge-${typeFromCode}">${typeFromCode}</span>` : ''}${p.opName ? `<span style="font-size:.8rem;color:var(--muted)">手術</span><span style="font-size:.85rem;font-weight:600">${p.opName}</span>` : ''}${p.location ? `<span style="font-size:.8rem;color:var(--muted)">部位</span><span style="font-size:.85rem;font-weight:600">${p.location}</span>` : ''}</div>` : ''}`;
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
@@ -648,6 +648,7 @@ const APP = {
         });
         this.updateOpDropdowns(typeFromCode);
         if(p.opName) document.getElementById('s-opname').value = p.opName;
+        if(p.location) document.getElementById('s-location').value = p.location;
       }
     }, 50);
   },

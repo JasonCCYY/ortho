@@ -82,8 +82,11 @@ ${opNames && opNames.length ? `
 5. 手術名稱: 從圖片文字辨識手術名稱，從以下清單選最接近的一個，無法辨識則回傳null
    清單: ${opNames.join('、')}` : ''}
 
+6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
+   - Rt = 右側, Lt = 左側, Bilateral = 雙側
+
 只回傳JSON，不加任何說明文字：
-{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null"}]}
+{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null","location":"Rt或Lt或Bilateral或null"}]}
 
 若無黃色框則回傳：{"patients":[]}` });
 
@@ -117,7 +120,8 @@ ${opNames && opNames.length ? `
       date:  (() => { const d = (p.date_roc ? rocToAD(p.date_roc) : null) || today; return d < today ? today : d; })(),
       codes: [...new Set((p.codes||[]).map(c=>String(c).trim()).filter(c=>/^\d+$/.test(c)))],
       note:  p.note||'',
-      opName: p.opName && p.opName !== 'null' ? p.opName : '',
+      opName:   p.opName   && p.opName   !== 'null' ? p.opName   : '',
+      location: p.location && p.location !== 'null' ? p.location : '',
     }));
 
     // 去除重複（同病歷號+日期+代碼組合）
