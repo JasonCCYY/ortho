@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
   try {
-    const { images, opNames, boneItems } = req.body || {};
+    const { images, opNames, boneItems, abbrevList } = req.body || {};
     console.log('[parse-image] images count:', images?.length);
     if (!images?.length) return res.status(400).json({ ok:false, error:'No images provided' });
 
@@ -86,8 +86,8 @@ ${opNames && opNames.length ? `
 6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
    - Rt = 右側, Lt = 左側, Bilateral = 雙側
 ${boneItems && boneItems.length ? `
-7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列
-   常見縮寫對照：I*1=Iconix、I*2=Iconix*2、I*3=Iconix*3、I寬=Iconix寬、漢森柏=漢森柏0.5
+7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列${abbrevList && abbrevList.length ? `
+   縮寫對照：${abbrevList.join('、')}` : ''}
    清單: ${boneItems.join('、')}` : ''}
 
 只回傳JSON，不加任何說明文字：

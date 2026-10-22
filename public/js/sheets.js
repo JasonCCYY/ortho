@@ -235,12 +235,15 @@ const SHEETS = {
     try {
       const [opRows, boneRows] = await Promise.all([
         this.read(this.T.opCat, 'A2:B200'),
-        this.read(this.T.boneCat, 'A2:B200')
+        this.read(this.T.boneCat, 'A2:C200')
       ]);
       this.opCats = opRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), name:(r[1]||'').trim()}));
-      const allBone = boneRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), bone:(r[1]||'').trim()}));
+      const allBone = boneRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), bone:(r[1]||'').trim(), abbrev:(r[2]||'').trim()}));
       this.growthFactors = allBone.filter(r=>r.type==='生長因子').map(r=>r.bone);
       this.boneCats = allBone.filter(r=>r.type!=='生長因子');
+      // 縮寫對照表 {縮寫: 骨材完整名稱}
+      this.boneAbbrevs = {};
+      allBone.forEach(r => { if(r.abbrev) this.boneAbbrevs[r.abbrev] = r.bone; });
     } catch(e) { console.warn('Category load failed:', e); }
   },
 

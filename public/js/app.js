@@ -470,10 +470,11 @@ const APP = {
         ...(SHEETS.boneCats||[]).map(c => c.bone),
         ...(SHEETS.growthFactors||[]),
       ].filter(Boolean);
+      const abbrevList = Object.entries(SHEETS.boneAbbrevs||{}).map(([k,v]) => `${k}=${v}`);
       const res = await fetch('/api/parse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, opNames, boneItems }),
+        body: JSON.stringify({ images, opNames, boneItems, abbrevList }),
       });
       console.log('[scan] response status:', res.status);
       const data = await res.json();
