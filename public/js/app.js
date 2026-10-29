@@ -1457,7 +1457,7 @@ const APP = {
             for (const s of boneSels) {
               if (!s.product) continue;
               const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
-              await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+              await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
             }
           }
         }
@@ -1582,7 +1582,7 @@ const APP = {
           const prod = matProds.find(p => p.brand === s.brand && p.product === s.product)
                     || matProds.find(p => p.product === s.product);
           await SHEETS.addMatFromSurgery({
-            date: d.date, brand: s.brand || s.product, product: s.product,
+            date: d.date, brand: s.brand || prod?.brand || s.product, product: s.product,
             price: prod?.price || '', qty: s.qty || 1, patient: d.name
           });
         }
