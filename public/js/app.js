@@ -1758,7 +1758,8 @@ const APP = {
     const type = bwrap?.dataset.boneType || '';
     const map = this._getBoneMap(wrapId);
     const boneCats = SHEETS.boneCats || [];
-    const products = boneCats.filter(c=>c.type===type && c.brand===brand);
+    const allProds = boneCats.filter(c=>c.type===type && c.brand===brand);
+    const products = allProds.filter((c,i)=>allProds.findIndex(p=>p.product===c.product)===i);
     const prodRow = document.getElementById(wrapId+'-prod-row');
     if (!prodRow) return;
     prodRow.innerHTML = products.map(c => {
@@ -1793,7 +1794,8 @@ const APP = {
           h += `<button type="button" class="chip bone-brand-chip${b===startBrand?' on':''}" data-brand="${b}" onclick="APP.selectBoneBrand(this,'${wrapId}')">${b}</button>`;
         });
         h += `</div>`;
-        const prods = typeBones.filter(c=>c.brand===startBrand);
+        const allStartProds = typeBones.filter(c=>c.brand===startBrand);
+        const prods = allStartProds.filter((c,i)=>allStartProds.findIndex(p=>p.product===c.product)===i);
         h += `<div class="bone-section" style="margin-top:8px">產品</div>`;
         h += `<div class="chip-row wrap" style="margin-top:6px" id="${wrapId}-prod-row">`;
         prods.forEach(c => {
@@ -1806,8 +1808,9 @@ const APP = {
     } else {
       const prods = boneCats.filter(c=>c.type===type);
       if (prods.length) {
-        h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-        prods.forEach(c => {
+        h += `<div class="chip-row wrap" style="margin-top:6px">`;
+        const uniqueProds = prods.filter((c,i)=>prods.findIndex(p=>p.product===c.product)===i);
+        uniqueProds.forEach(c => {
           const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
           const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
           h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
