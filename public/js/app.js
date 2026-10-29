@@ -1802,6 +1802,7 @@ const APP = {
   },
   _boneAbbrev(brand, product, showBrand) {
     if (!showBrand || !brand) return product;
+    if (SHEETS.growthFactors && SHEETS.growthFactors.includes(product)) return product;
     if (['O cement', 'Depuy'].includes(product)) return product;
     if (brand === 'AO') {
       if (['TFNA', 'hook', 'H-nail'].includes(product)) return 'AO ' + product;
