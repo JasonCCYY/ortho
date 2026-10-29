@@ -988,7 +988,9 @@ const APP = {
             const _si = APP._storeRow(r);
             const isDone = r.done?.toLowerCase()==='true';
             const isNewRow = isManualToday(r);
-            html += `<div class="mat-detail-row${isDone?' done-row':''}" onclick="APP.openDetailS('mat',${_si})">
+            const isManual = r.patient==='門診' || r.patient==='';
+            const clickAttr = isManual ? ` onclick="APP.openDetailS('mat',${_si})" style="cursor:pointer"` : '';
+            html += `<div class="mat-detail-row${isDone?' done-row':''}"${clickAttr}>
               <span class="${isNewRow?'new-dot':'dot-ph'}"></span>
               <span class="detail-date">${r.date}</span>
               <span class="detail-patient">${r.patient||''}</span>
