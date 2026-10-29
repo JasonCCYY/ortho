@@ -1462,7 +1462,7 @@ const APP = {
               addCount++;
             }
           }
-          this.toast(`✅ 骨材記錄：刪除 ${delCount} 筆，新增 ${addCount} 筆`);
+          this.toast('✅ 骨材記錄已同步修改');
         }
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
@@ -1521,7 +1521,7 @@ const APP = {
       if (type === 'sx' && r.name && r.date) {
         try {
           const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
-          if (deleted > 0) this.toast(`✅ 已同步刪除 ${deleted} 筆骨材記錄`);
+          if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
         } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
       }
     } catch(e) { this.toast('❌ '+e.message); }
@@ -1541,7 +1541,7 @@ const APP = {
       if (r.name && r.date) {
         try {
           const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
-          if (deleted > 0) this.toast(`✅ 骨材記錄：已刪除 ${deleted} 筆`);
+          if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
         } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
       }
     } catch(e) { this.toast('❌ '+e.message); }
