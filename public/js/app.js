@@ -975,7 +975,7 @@ const APP = {
           const detailId = 'mat-det-' + (detailCtr++);
           const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
           const totalVal = cleanP * totalQty;
-          const subLine = (totalQty > 1 && cleanP) ? `<span class="mat-agg-sub">×${totalQty}=$${totalVal.toLocaleString()}</span>` : '';
+          const subLine = (totalQty > 1 && cleanP) ? `<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>` : '';
           html += `<div class="list-row" onclick="APP.toggleMatDetail('${detailId}')">
             <span class="${hasNewManual?'new-dot':'dot-ph'}"></span>
             <span class="col-brand">${g.brand}</span>
@@ -996,7 +996,7 @@ const APP = {
               <span class="${isNewRow?'new-dot':'dot-ph'}"></span>
               <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date) ? r.date.slice(5) : r.date}</span>
               <span class="detail-patient">${r.patient||''}</span>
-              <span class="detail-qty">×${r.qty||1}</span>
+              <span class="detail-qty">*${r.qty||1}</span>
               ${isDone?'<span class="detail-done">✓</span>':''}
             </div>`;
           });
@@ -1772,6 +1772,11 @@ const APP = {
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
     if (inp) inp.value = parts.join(' , ');
   },
+  _getBoneArea(wrapId) {
+    const prefix = wrapId.replace('-bone-wrap', '');
+    const el = document.getElementById(prefix + '-area-val');
+    return el ? (el.value || '中正') : '中正';
+  },
   selectBoneBrand(btn, wrapId) {
     btn.closest('.bone-brand-row').querySelectorAll('.bone-brand-chip').forEach(c=>c.classList.remove('on'));
     btn.classList.add('on');
@@ -1779,7 +1784,8 @@ const APP = {
     const bwrap = document.getElementById(wrapId);
     const type = bwrap?.dataset.boneType || '';
     const map = this._getBoneMap(wrapId);
-    const boneCats = SHEETS.boneCats || [];
+    const area = this._getBoneArea(wrapId);
+    const boneCats = (SHEETS.boneCats || []).filter(c=>!c.hospital||c.hospital===area);
     const allProds = boneCats.filter(c=>c.type===type && c.brand===brand);
     const products = allProds.filter((c,i)=>allProds.findIndex(p=>p.product===c.product)===i);
     const prodRow = document.getElementById(wrapId+'-prod-row');
@@ -1788,14 +1794,15 @@ const APP = {
       const key = c.brand+'|'+c.product;
       const qty = map.get(key) || 0;
       const on = qty > 0 ? ' on' : '';
-      const qStr = qty > 1 ? `<span class="bone-qty"> ×${qty}</span>` : '';
+      const qStr = qty > 1 ? `<span class="bone-qty"> *${qty}</span>` : '';
       return `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
     }).join('');
   },
   _initBoneWrap(wrapId, valId, type, implant) {
     const bwrap = document.getElementById(wrapId);
     if (!bwrap) return;
-    const boneCats = SHEETS.boneCats || [];
+    const area = this._getBoneArea(wrapId);
+    const boneCats = (SHEETS.boneCats || []).filter(c=>!c.hospital||c.hospital===area);
     const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length) ? SHEETS.growthFactors : ['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
     const map = this._getBoneMap(wrapId);
     map.clear();
@@ -1822,7 +1829,7 @@ const APP = {
         h += `<div class="chip-row wrap" style="margin-top:6px" id="${wrapId}-prod-row">`;
         prods.forEach(c => {
           const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
-          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          const qStr=qty>1?`<span class="bone-qty"> *${qty}</span>`:'';
           h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
         });
         h += `</div>`;
@@ -1834,7 +1841,7 @@ const APP = {
         const uniqueProds = prods.filter((c,i)=>prods.findIndex(p=>p.product===c.product)===i);
         uniqueProds.forEach(c => {
           const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
-          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          const qStr=qty>1?`<span class="bone-qty"> *${qty}</span>`:'';
           h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
         });
         h += `</div>`;
@@ -1843,7 +1850,7 @@ const APP = {
     h += `<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
     growth.forEach(b => {
       const key='|'+b, qty=map.get(key)||0, on=qty>0?' on':'';
-      const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+      const qStr=qty>1?`<span class="bone-qty"> *${qty}</span>`:'';
       h += `<button type="button" class="chip bone-toggle${on}" data-brand="" data-product="${b}" onclick="APP.boneChipClick(this,'${wrapId}','','${b.replace(/'/g,"\\'")}')">${b}${qStr}</button>`;
     });
     h += `</div>`;
@@ -1887,6 +1894,8 @@ const APP = {
     const wrap=document.getElementById('s-clinicid-wrap');
     if(wrap) wrap.style.display = v==='右昌' ? '' : 'none';
     if(v!=='右昌') { const f=document.getElementById('s-clinicid'); if(f) f.value=''; }
+    const type = document.getElementById('s-type-val')?.value || '';
+    if(type) this._initBoneWrap('s-bone-wrap','s-bone-val',type, document.getElementById('s-bone-val')?.value||'');
   },
   selectType(el,type){
     document.querySelectorAll('[onclick*="selectType"]').forEach(c=>c.classList.remove('on'));el.classList.add('on');
