@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
   try {
-    const { images, opNames } = req.body || {};
+    const { images, opNames, boneItems, abbrevList, brandProducts } = req.body || {};
     console.log('[parse-image] images count:', images?.length);
     if (!images?.length) return res.status(400).json({ ok:false, error:'No images provided' });
 
@@ -63,11 +63,12 @@ module.exports = async (req, res) => {
 
     parts.push({ text: `這是台灣醫院手術排程系統（ORRZ301）截圖。
 畫面中有黃色背景彈出框，每個代表一位病人的手術資料。
-只讀黃色框內文字，完全忽略框外的其他內容。
+【重要】只讀黃色框內文字，背景的白色欄位、粉紅色列、其他欄位的文字一律完全忽略，即使背景有人名也不可讀取。
 
 從黃色框擷取以下資料：
 
-1. 病患: 「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字；姓名通常為2至4個中文字，請逐字仔細讀取，不可遺漏任何一個字
+1. 病患: 黃色框內「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字；姓名通常為2至4個中文字，請逐字仔細讀取，不可遺漏任何一個字。
+   【注意】姓名只能來自黃色框內「病患:」欄位，絕對不可使用框外背景的任何名字。
 
 2. 日期: 畫面最上方「手術日期」欄位的民國年數字（如1150612代表民國115年6月12日）
 
@@ -84,9 +85,17 @@ ${opNames && opNames.length ? `
 
 6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
    - Rt = 右側, Lt = 左側, Bilateral = 雙側
+${boneItems && boneItems.length ? `
+7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列${abbrevList && abbrevList.length ? `
+   縮寫對照（格式 縮寫=完整名）：${abbrevList.join('、')}` : ''}
+   數量解析：若備註為「縮寫*數字」如「I*2」→ 回傳「完整名稱 ×數字」（例：「Iconix ×2」）；若無數字則不加 ×N
+   清單: ${boneItems.join('、')}` : ''}
+${brandProducts && Object.keys(brandProducts).length ? `
+8. 廠牌產品推斷: 若備註只寫廠牌（如「AO」），可結合手術名稱context（如Radius fracture→推斷AO Radius）從以下廠牌產品對照中回傳「廠牌 產品名稱」字串；若無法推斷則只回傳廠牌名稱
+   廠牌產品對照（JSON）: ${JSON.stringify(brandProducts)}` : ''}
 
 只回傳JSON，不加任何說明文字：
-{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null","location":"Rt或Lt或Bilateral或null"}]}
+{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null","location":"Rt或Lt或Bilateral或null","implants":["骨材1","骨材2"]}]}
 
 若無黃色框則回傳：{"patients":[]}` });
 
@@ -122,6 +131,7 @@ ${opNames && opNames.length ? `
       note:  p.note||'',
       opName:   p.opName   && p.opName   !== 'null' ? p.opName   : '',
       location: p.location && p.location !== 'null' ? p.location : '',
+      implants: Array.isArray(p.implants) ? p.implants.filter(x => x && x !== 'null') : [],
     }));
 
     // 去除重複（同病歷號+日期+代碼組合）

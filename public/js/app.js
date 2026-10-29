@@ -418,6 +418,11 @@ const APP = {
     this.openModal('modal-op');
   },
 
+  openICD() {
+    const base = '/icd/?p=1';
+    window.location.href = AUTH.ok ? base + '#08260000' : base;
+  },
+
   openScan() {
     this.closeFabMenu();
     document.getElementById('scan-file-input').click();
@@ -461,10 +466,22 @@ const APP = {
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
       const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
+      const boneCatsAll = SHEETS.boneCats || [];
+      const boneItems = [
+        ...boneCatsAll.map(c => c.product),
+        ...boneCatsAll.map(c => c.brand),
+        ...(SHEETS.growthFactors||[]),
+      ].filter((v,i,a) => v && a.indexOf(v)===i);
+      const abbrevList = Object.entries(SHEETS.boneAbbrevs||{}).map(([k,v]) => `${k}=${v}`);
+      const brandProducts = {};
+      boneCatsAll.forEach(c => {
+        if (!brandProducts[c.brand]) brandProducts[c.brand] = [];
+        if (!brandProducts[c.brand].includes(c.product)) brandProducts[c.brand].push(c.product);
+      });
       const res = await fetch('/api/parse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, opNames }),
+        body: JSON.stringify({ images, opNames, boneItems, abbrevList, brandProducts }),
       });
       console.log('[scan] response status:', res.status);
       const data = await res.json();
@@ -517,6 +534,9 @@ const APP = {
 
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
+        }
+        if(p.implants && p.implants.length) {
+          html += `<div class="scan-note" style="color:var(--accent)">骨材：${p.implants.join('、')}</div>`;
         }
 
         if(matchedCodes.length) {
@@ -633,7 +653,7 @@ const APP = {
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
       }
 
       this.toast(`✅ ${p.name} 已新增`);
@@ -673,6 +693,32 @@ const APP = {
         this.updateOpDropdowns(typeFromCode);
         if(p.opName) document.getElementById('s-opname').value = p.opName;
         if(p.location) document.getElementById('s-location').value = p.location;
+      }
+      // 自動勾選骨材/生長因子
+      if(p.implants && p.implants.length) {
+        const bCats = SHEETS.boneCats || [];
+        const map = this._getBoneMap('s-bone-wrap');
+        p.implants.forEach(impl => {
+          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===impl.toLowerCase());
+          const byP  = bCats.find(c => c.product.toLowerCase()===impl.toLowerCase());
+          const byB  = bCats.find(c => c.brand.toLowerCase()===impl.toLowerCase());
+          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===impl.toLowerCase());
+          const m = byBP || byP || byB;
+          if (m) map.set(m.brand+'|'+m.product, 1);
+          else if (gf) map.set('|'+gf, 1);
+        });
+        // Refresh visible chip states
+        document.querySelectorAll('#s-bone-wrap .bone-toggle').forEach(btn => {
+          const key = (btn.dataset.brand||'') + '|' + (btn.dataset.product||'');
+          const qty = map.get(key) || 0;
+          btn.classList.toggle('on', qty > 0);
+          let q = btn.querySelector('.bone-qty');
+          if (qty > 0) {
+            if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
+            q.textContent = qty > 1 ? ' ×'+qty : '';
+          } else { q?.remove(); }
+        });
+        this._updateBoneVal('s-bone-wrap');
       }
     }, 50);
   },
@@ -794,6 +840,7 @@ const APP = {
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
     if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
+    SHEETS.loadCategories().catch(()=>{});
     if(this.tab==='surgery') this.switchSx(this.subSx);
     else if(this.tab==='material') this.switchMat(this.subMat);
     else this.loadClinic();
@@ -803,6 +850,7 @@ const APP = {
 
   // ── Surgery ──
   async loadSurgery() {
+    this._clearStore();
     const el = document.getElementById('sx-list-body');
     el.innerHTML = this.loading();
     try {
@@ -849,6 +897,7 @@ const APP = {
 
   // ── Track ──
   async loadTrack() {
+    this._clearStore();
     const el = document.getElementById('track-list-body');
     el.innerHTML = this.loading();
     try {
@@ -896,44 +945,73 @@ const APP = {
 
   // ── Material Records ──
   async loadMatRec() {
+    this._clearStore();
     const el = document.getElementById('mat-rec-list');
     el.innerHTML = this.loading();
     try {
       let recs = await SHEETS.loadMatRecords();
       if(!recs.length) { el.innerHTML = this.empty(); return; }
       let html = '';
+      let detailCtr = 0;
       this.groupByMonth(recs).forEach(([m, rows]) => {
-        const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
-        html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
-        const sorted = [...rows].sort((a,b)=>{
-          const aN=a.todayNew?.toString().toUpperCase()==='TRUE';
-          const bN=b.todayNew?.toString().toUpperCase()==='TRUE';
-          if(aN&&!bN) return -1; if(!aN&&bN) return 1;
-          return this.sortBrands(a.brand||'',b.brand||'');
+        const monthTotal = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
+        html += `<div class="list-month-hdr">${m} <span class="month-badge">$${monthTotal.toLocaleString()}</span></div>`;
+
+        // Sub-group by brand+product
+        const groups = {};
+        rows.forEach(r => {
+          const key = r.brand+'|'+r.product;
+          if (!groups[key]) groups[key] = { brand:r.brand, product:r.product, price:r.price, rows:[] };
+          groups[key].rows.push(r);
         });
-        sorted.forEach(r => {
-          const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
-          const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          const qty=parseInt(r.qty)||1;
-          const sub=cleanP&&qty>1?`<span class="sub-total">×${qty}=$${(cleanP*qty).toLocaleString()}</span>`:'';
-          const _si=APP._storeRow(r);
-          const isDone=r.done?.toLowerCase()==='true';
-          html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('mat',${_si})">
-            ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
-            <span class="col-brand">${r.brand}</span>
-            <span class="col-product">${r.product}${sub}</span>
-            <span class="col-qty">${r.qty}</span>
+
+        Object.values(groups).sort((a,b) => this.sortBrands(a.brand,b.brand)).forEach(g => {
+          const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
+          const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
+          const allDone = g.rows.length > 0 && g.rows.every(r=>r.done?.toLowerCase()==='true');
+          const detailId = 'mat-det-' + (detailCtr++);
+          const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
+          html += `<div class="list-row" onclick="APP.toggleMatDetail('${detailId}')">
+            <span class="dot-ph"></span>
+            <span class="col-brand">${g.brand}</span>
+            <span class="col-product">${g.product}</span>
+            <span class="col-qty">×${totalQty}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            ${isDone ? '<span class="done-ph"></span>' : `<button class="done-btn" onclick="event.stopPropagation();APP.markDone(${r._row})" title="標記完成">☑</button>`}
+            ${allDone?'<span class="done-ph"></span>':`<button class="done-btn" onclick="event.stopPropagation();APP.markDoneGroup('${em}','${eb}','${ep}')" title="標記全部完成">☑</button>`}
           </div>`;
+          // Detail rows (hidden by default)
+          html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
+          g.rows.forEach(r => {
+            const _si = APP._storeRow(r);
+            const isDone = r.done?.toLowerCase()==='true';
+            html += `<div class="mat-detail-row${isDone?' done-row':''}" onclick="APP.openDetailS('mat',${_si})">
+              <span class="detail-date">${r.date}</span>
+              <span class="detail-patient">${r.patient||''}</span>
+              <span class="detail-qty">×${r.qty||1}</span>
+              ${isDone?'<span class="detail-done">✓</span>':''}
+            </div>`;
+          });
+          html += `</div>`;
         });
       });
       el.innerHTML = html;
     } catch(e) { el.innerHTML = this.err(e); }
   },
 
+  toggleMatDetail(detailId) {
+    const el = document.getElementById(detailId);
+    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+  },
+
+  async markDoneGroup(em, eb, ep) {
+    const month = decodeURIComponent(em), brand = decodeURIComponent(eb), product = decodeURIComponent(ep);
+    try { await SHEETS.setDoneForMonth(month, brand, product); this.toast('✅ 已標記完成'); this.loadMatRec(); }
+    catch(e) { this.toast('❌ '+e.message); }
+  },
+
   // ── Self-pay ──
   async loadSelfPay() {
+    this._clearStore();
     const el = document.getElementById('selfpay-list');
     el.innerHTML = this.loading();
     try {
@@ -976,9 +1054,12 @@ const APP = {
 
   // ── OP Code ──
   async loadOpCode() {
+    this._clearStore();
     const el = document.getElementById('opcode-list');
     el.innerHTML = this.loading();
     try {
+      const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
       let items = await SHEETS.loadOpCodes();
       if(!items.length) { el.innerHTML = this.empty(); return; }
       const areaOrder = ['中正','右昌'];
@@ -992,15 +1073,24 @@ const APP = {
       });
       let html = '';
       sortedAreas.forEach(area => {
-        const rows = groups[area].sort((a,b)=>parseInt(a.code||0)-parseInt(b.code||0));
+        const rows = groups[area].sort((a,b)=>{
+          const tr=typeRank(a.type)-typeRank(b.type);
+          if(tr!==0) return tr;
+          return parseInt(a.code||0)-parseInt(b.code||0);
+        });
         html += `<div class="list-group-hdr">${area}</div>`;
         rows.forEach(r => {
           const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
+          const t = r.type || '';
           const _si=APP._storeRow(r);
           html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
-            <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}')" title="新增到代碼紀錄" style="position:absolute;left:50%;transform:translateX(-50%);flex-shrink:0">＋</button>
+            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:26px;flex-shrink:0" onclick="event.stopPropagation()">
+              <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="新增到代碼紀錄">＋</button>
+              <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="第二術式（減半）">½</button>
+            </div>
+            ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
           </div>`;
         });
@@ -1011,11 +1101,17 @@ const APP = {
 
   // ── Code Records ──
   async loadCodeRec() {
+    this._clearStore();
     const el = document.getElementById('code-rec-list');
     el.innerHTML = this.loading();
     try {
-      let recs = await SHEETS.loadCodeRecords();
+      const [recs, opCodes] = await Promise.all([SHEETS.loadCodeRecords(), SHEETS.loadOpCodes()]);
       if(!recs.length) { el.innerHTML = this.empty(); return; }
+      const typeMap = {};
+      opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
+      const resolveType = r => r.type || typeMap[r.code] || typeMap[(r.code||'').replace('*','')] || '';
+      const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
       let html = '';
       this.groupByMonth(recs).forEach(([m,rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
@@ -1027,19 +1123,25 @@ const APP = {
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
           const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
           if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
+          const tr=typeRankCR(resolveType(a))-typeRankCR(resolveType(b));
+          if(tr!==0) return tr;
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
           const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
+          const t=resolveType(r);
           const _si=APP._storeRow(r);
+          const tagInner = r.area==='右昌'
+            ? `<span class="col-area" style="width:auto">右昌</span>`
+            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px">${t}</span>`:'');
           html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
             ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
             <span class="col-product" title="${r.name}">${r.name}</span>
             <span class="col-code">${r.code}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             <span class="col-qty">${r.qty}</span>
-            <span class="col-area">${r.area}</span>
+            <span class="col-type">${tagInner}</span>
           </div>`;
         });
       });
@@ -1049,6 +1151,7 @@ const APP = {
 
   // ── Estimate — transposed: rows=labels, cols=months ──
   async loadEstimate() {
+    this._clearStore();
     const thead = document.getElementById('est-thead');
     const tbody = document.getElementById('est-tbody');
     tbody.innerHTML = `<tr><td colspan="10" class="load-msg">載入中...</td></tr>`;
@@ -1093,6 +1196,7 @@ const APP = {
 
   // ── Clinic — sorted by clinicProducts order ──
   async loadClinic() {
+    this._clearStore();
     const el = document.getElementById('clinic-content');
     el.innerHTML = this.loading();
     try {
@@ -1161,8 +1265,13 @@ const APP = {
     try { await SHEETS.quickAddMat(brand, product, price); this.toast(`✅ 已新增 ${product}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCode(name, code, price, area) {
-    try { await SHEETS.quickAddCode({name,code,price,area}); this.toast(`✅ 已新增 ${name}`); }
+  async qAddCode(name, code, price, area, type='') {
+    try { await SHEETS.quickAddCode({name,code,price,area,type}); this.toast(`✅ 已新增 ${name}`); }
+    catch(e) { this.toast('❌ '+e.message); }
+  },
+  async qAddCodeHalf(name, code, price, area, type='') {
+    const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddClinic(name, price) {
@@ -1217,6 +1326,8 @@ const APP = {
     }
     document.getElementById('detail-body').innerHTML = content;
     document.getElementById('detail-edit-btn').style.display = '';
+    document.getElementById('detail-track-btn').style.display = type === 'sx' ? '' : 'none';
+    document.getElementById('detail-sx-btn').style.display = type === 'track' ? '' : 'none';
     document.getElementById('modal-detail').classList.add('open');
   
   },
@@ -1303,19 +1414,37 @@ const APP = {
     } catch(e) { console.error('openEdit error:', e); this.toast('⚠️ 開啟修改失敗: '+e.message); }
   },
 
+  _lockSaveBtn(modalId) {
+    const btn = document.querySelector(`#${modalId} .btn-save`);
+    if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
+    return btn;
+  },
+  _unlockSaveBtn(btn) {
+    if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
+  },
+
   async saveEdit() {
+    if (this._savingEdit) return;
+    this._savingEdit = true;
     const type=this._detailType, r=this._detailData;
+    const modalMap={sx:'modal-edit-sx',track:'modal-edit-track',mat:'modal-edit-mat',selfpay:'modal-edit-selfpay',opcode:'modal-edit-opcode',coderec:'modal-edit-coderec',clinic:'modal-edit-clinic'};
+    const btn = this._lockSaveBtn(modalMap[type]||'');
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:document.getElementById('es-name').value,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
+        const oldName = r.name || '';
+        const newName = document.getElementById('es-name').value;
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
+        if (oldName && newName && oldName !== newName) {
+          await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
+        }
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
         await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
         this.closeModal('modal-edit-track'); this.loadTrack();
       } else if(type==='mat') {
-        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value});
+        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value,patient:r.patient||''});
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
         const rawPrice = document.getElementById('esp-price').value.trim();
@@ -1343,13 +1472,14 @@ const APP = {
       }
       this.toast('✅ 已更新');
     } catch(e) { this.toast('❌ '+e.message); }
+    finally { this._savingEdit = false; this._unlockSaveBtn(btn); }
   },
 
   async deleteDetail() {
     const type=this._detailType, r=this._detailData;
     if(!confirm('確定刪除？')) return;
     const tabMap={sx:'op',track:'track',mat:'matRec',selfpay:'matProd',opcode:'opCode',coderec:'codeRec',clinic:'clinic'};
-    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','G'],clinic:['A','E']};
+    const colMap={sx:['A','J'],track:['A','J'],mat:['A','G'],selfpay:['A','F'],opcode:['A','E'],coderec:['A','H'],clinic:['A','E']};
     const cacheMap={sx:'op',track:'track',mat:'matRec2',selfpay:'matProd',opcode:'opCode',coderec:'codeRec2',clinic:'clinic2'};
     const uidMap={};
     try {
@@ -1365,6 +1495,34 @@ const APP = {
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
+  async moveToTrack() {
+    const r = this._detailData;
+    if(!r) return;
+    if(!confirm('將此手術紀錄移至追蹤？')) return;
+    try {
+      await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移至追蹤');
+      this.refresh();
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
+  async moveToSx() {
+    const r = this._detailData;
+    if(!r) return;
+    if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
+    try {
+      await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移回手術紀錄');
+      this.refresh();
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
   toggleDone(val) {
     document.getElementById('em-done-val').value=val;
     document.getElementById('em-done-y').classList.toggle('on',val==='true');
@@ -1373,10 +1531,11 @@ const APP = {
 
   // ── New record save ──
   async saveOp() {
-    if(this._savingOp) return; // prevent double submit
+    if(this._savingOp) return;
     const d={date:document.getElementById('s-date').value.replace(/-/g,'/'),area:document.getElementById('s-area-val').value,mrn:document.getElementById('s-mrn').value.trim(),clinicId:document.getElementById('s-clinicid')?.value.trim()||'',name:document.getElementById('s-name').value.trim(),type:document.getElementById('s-type-val').value,opName:document.getElementById('s-opname').value,location:document.getElementById('s-location').value.trim(),implant:document.getElementById('s-bone-val').value,note:document.getElementById('s-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
     this._savingOp = true;
+    const btn=this._lockSaveBtn('modal-op');
     const scanIdx = this._scanEditIdx ?? null;
     this._scanEditIdx = null;
     try{
@@ -1384,7 +1543,21 @@ const APP = {
       if(scanIdx !== null) {
         const sp = this._scanPatients?.[scanIdx];
         for(const c of (sp?.matchedCodes || [])) {
-          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正' });
+          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
+        }
+      }
+      // Sync bone chips → 骨材記錄
+      if (d.implant) {
+        const matProds = await SHEETS.loadMatProducts();
+        const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []);
+        for (const s of boneSels) {
+          if (!s.product) continue;
+          const prod = matProds.find(p => p.brand === s.brand && p.product === s.product)
+                    || matProds.find(p => p.product === s.product);
+          await SHEETS.addMatFromSurgery({
+            date: d.date, brand: s.brand || s.product, product: s.product,
+            price: prod?.price || '', qty: s.qty || 1, patient: d.name
+          });
         }
       }
       this.closeModal('modal-op');
@@ -1397,22 +1570,23 @@ const APP = {
       document.getElementById('s-location').value='';
       document.getElementById('s-note').value='';
       document.getElementById('s-bone-val').value='';
-      document.getElementById('s-bone-wrap').innerHTML='<div style="color:var(--muted);font-size:.88rem">請先選擇類型</div>';
       document.getElementById('s-opname').innerHTML='<option value="">請先選擇類型</option>';
       document.getElementById('s-type-val').value='Joint';
       document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
+      this._initBoneWrap('s-bone-wrap','s-bone-val','Joint','');
       document.querySelectorAll('#modal-op .chip.area').forEach(c=>{c.classList.toggle('on',c.textContent.trim()==='中正');});
       document.getElementById('s-area-val').value='中正';
       if(document.getElementById('s-clinicid-wrap')) document.getElementById('s-clinicid-wrap').style.display='none';
     }
     catch(e){this.toast('❌ '+e.message);}
-    finally{this._savingOp = false;}
+    finally{this._savingOp = false; this._unlockSaveBtn(btn);}
   },
   async saveTrack() {
-    if(this._savingTrack) return; // prevent double submit
+    if(this._savingTrack) return;
     const d={date:document.getElementById('tk-date').value.replace(/-/g,'/'),area:document.getElementById('tk-area-val').value,mrn:document.getElementById('tk-mrn').value.trim(),clinicId:document.getElementById('tk-clinicid')?.value.trim()||'',name:document.getElementById('tk-name').value.trim(),type:document.getElementById('tk-type-val').value,opName:document.getElementById('tk-opname').value.trim(),location:document.getElementById('tk-loc').value.trim(),implant:document.getElementById('tk-bone-val')?.value||'',note:document.getElementById('tk-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
     this._savingTrack = true;
+    const btn=this._lockSaveBtn('modal-track');
     try{
       await SHEETS.addTrack(d);
       this.closeModal('modal-track');
@@ -1425,34 +1599,66 @@ const APP = {
       document.getElementById('tk-loc').value='';
       document.getElementById('tk-note').value='';
       if(document.getElementById('tk-bone-val')) document.getElementById('tk-bone-val').value='';
-      if(document.getElementById('tk-bone-wrap')) document.getElementById('tk-bone-wrap').innerHTML='<div style="color:var(--muted);font-size:.88rem">請先選擇類型</div>';
       if(document.getElementById('tk-opname')) document.getElementById('tk-opname').innerHTML='<option value="">選擇手術名稱</option>';
       document.getElementById('tk-type-val').value='Joint';
       document.querySelectorAll('#modal-track .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
+      this._initBoneWrap('tk-bone-wrap','tk-bone-val','Joint','');
       document.querySelectorAll('#modal-track .chip.area').forEach(c=>{c.classList.toggle('on',c.textContent.trim()==='中正');});
       document.getElementById('tk-area-val').value='中正';
       if(document.getElementById('tk-clinicid-wrap')) document.getElementById('tk-clinicid-wrap').style.display='none';
     }
     catch(e){this.toast('❌ '+e.message);}
-    finally{this._savingTrack = false;}
+    finally{this._savingTrack = false; this._unlockSaveBtn(btn);}
   },
   async saveMat() {
+    if(this._savingMat) return; this._savingMat=true;
+    const btn=this._lockSaveBtn('modal-mat');
     const d={date:document.getElementById('m-date').value.replace(/-/g,'/'),brand:document.getElementById('m-brand').value.trim(),product:document.getElementById('m-product').value.trim(),qty:document.getElementById('m-qty').value,price:document.getElementById('m-price').value};
-    if(!d.date||!d.product){this.toast('請填入日期和產品');return;}
+    if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingMat=false;return;}
     try{await SHEETS.addMat(d);this.closeModal('modal-mat');this.toast('✅ 已儲存');this.loadMatRec();}
     catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingMat=false; this._unlockSaveBtn(btn);}
   },
   async saveCode() {
+    if(this._savingCode) return; this._savingCode=true;
+    const btn=this._lockSaveBtn('modal-code');
     const d={date:document.getElementById('c-date').value.replace(/-/g,'/'),name:document.getElementById('c-name').value.trim(),code:document.getElementById('c-code').value.trim(),price:document.getElementById('c-price').value,qty:document.getElementById('c-qty').value,area:document.getElementById('c-area').value};
-    if(!d.date||!d.code){this.toast('請填入日期和代碼');return;}
-    try{await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();}
+    if(!d.date||!d.code){this.toast('請填入日期和代碼');this._unlockSaveBtn(btn);this._savingCode=false;return;}
+    try{
+      const opCodes = await SHEETS.loadOpCodes();
+      const match = opCodes.find(r=>r.code===d.code) || opCodes.find(r=>r.code===d.code.replace('*',''));
+      d.type = match?.type||'';
+      await SHEETS.addCode(d);this.closeModal('modal-code');this.toast('✅ 已儲存');this.loadCodeRec();
+    }
     catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingCode=false; this._unlockSaveBtn(btn);}
+  },
+  // 一次性工具：回填舊代碼紀錄的類型欄位（G欄）
+  async backfillCodeRecTypes() {
+    const [opCodes, recs] = await Promise.all([SHEETS.loadOpCodes(), SHEETS.read(SHEETS.T.codeRec,'A2:H500')]);
+    const typeMap = {};
+    opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type||''; });
+    let updated = 0;
+    for(let i=0;i<recs.length;i++){
+      const row=recs[i]; if(!row[0]) continue;
+      if(row[6]) continue; // already has type
+      const code=(row[3]||'').trim();
+      const t = typeMap[code] || typeMap[code.replace('*','')] || '';
+      if(!t) continue;
+      await SHEETS.put(SHEETS.T.codeRec+'!G'+(i+2), [[t]]);
+      updated++;
+    }
+    localStorage.removeItem('ortho_codeRec2');
+    this.toast(`✅ 已回填 ${updated} 筆類型`);
   },
   async saveCli() {
+    if(this._savingCli) return; this._savingCli=true;
+    const btn=this._lockSaveBtn('modal-cli');
     const d={date:document.getElementById('cl-date').value.replace(/-/g,'/'),product:document.getElementById('cl-product').value,price:document.getElementById('cl-price').value,qty:document.getElementById('cl-qty').value};
-    if(!d.date||!d.product){this.toast('請填入日期和產品');return;}
+    if(!d.date||!d.product){this.toast('請填入日期和產品');this._unlockSaveBtn(btn);this._savingCli=false;return;}
     try{await SHEETS.addClinic(d);this.closeModal('modal-cli');this.toast('✅ 已儲存');this.loadClinic();}
     catch(e){this.toast('❌ '+e.message);}
+    finally{this._savingCli=false; this._unlockSaveBtn(btn);}
   },
 
 
@@ -1471,7 +1677,7 @@ const APP = {
     wrap.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
     el.classList.add('on');
     document.getElementById(pfx+'-type-val').value = type;
-    // For edit-sx also update bone/opname dropdowns
+    // For edit-sx/et also update bone/opname dropdowns
     if(pfx==='es') {
       const sel = document.getElementById('es-opname');
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
@@ -1482,45 +1688,145 @@ const APP = {
       const etSel2=document.getElementById('et-opname');
       if(etSel2) etSel2.innerHTML='<option value="">選擇手術名稱</option>'+etNames2.map(n=>`<option value="${n}">${n}</option>`).join('');
       APP.initEtBoneChips(type, '');
+    } else if(pfx==='tk') {
+      const tkSel=document.getElementById('tk-opname');
+      if(tkSel) {
+        const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
+        tkSel.innerHTML='<option value="">選擇手術名稱</option>'+tkNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+      }
+      APP.initTkBoneChips(type, '');
     }
   },
-  toggleEsBoneChip(btn){ btn.classList.toggle('on'); document.getElementById('es-bone-val').value=[...document.querySelectorAll('#es-bone-wrap .bone-toggle.on')].map(c=>c.dataset.val).join(' , '); },
-  initEsBoneChips(type, implant) {
-    const bwrap = document.getElementById('es-bone-wrap');
-    const main = (SHEETS.boneCats||[]).filter(c=>c.type.trim()===type).map(c=>c.bone);
-    const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length)?SHEETS.growthFactors:['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
-    const selected = implant ? implant.split(' , ').map(s=>s.trim()) : [];
+  // ── Bone chip state ──
+  _boneState: {},
+  _getBoneMap(wrapId) {
+    if (!this._boneState[wrapId]) this._boneState[wrapId] = new Map();
+    return this._boneState[wrapId];
+  },
+  _parseImplantToSelections(implant, boneCats) {
+    if (!implant) return [];
+    return implant.split(' , ').map(s=>s.trim()).filter(Boolean).map(part => {
+      const qm = part.match(/^(.+?)\s+×(\d+)$/);
+      const text = qm ? qm[1].trim() : part;
+      const qty  = qm ? parseInt(qm[2]) : 1;
+      const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
+      const byP  = boneCats.find(c=>c.product===text);
+      const byB  = boneCats.find(c=>c.brand===text);
+      const m = byBP || byP || byB;
+      if (m) return { brand:m.brand, product:m.product, qty };
+      return { brand:'', product:text, qty };
+    });
+  },
+  boneChipClick(btn, wrapId, brand, product) {
+    const map = this._getBoneMap(wrapId);
+    const key = brand + '|' + product;
+    const cur = map.get(key) || 0;
+    const next = cur >= 3 ? 0 : cur + 1;
+    if (next === 0) {
+      map.delete(key); btn.classList.remove('on');
+      btn.querySelector('.bone-qty')?.remove();
+    } else {
+      map.set(key, next); btn.classList.add('on');
+      let q = btn.querySelector('.bone-qty');
+      if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
+      q.textContent = next > 1 ? ' ×'+next : '';
+    }
+    this._updateBoneVal(wrapId);
+  },
+  _updateBoneVal(wrapId) {
+    const map = this._getBoneMap(wrapId);
+    const parts = [];
+    map.forEach((qty, key) => {
+      const sep = key.indexOf('|');
+      const brand = key.substring(0, sep), product = key.substring(sep+1);
+      const label = brand ? brand+' '+product : product;
+      parts.push(qty > 1 ? label+' ×'+qty : label);
+    });
+    const inp = document.getElementById(wrapId.replace('-wrap','-val'));
+    if (inp) inp.value = parts.join(' , ');
+  },
+  selectBoneBrand(btn, wrapId) {
+    btn.closest('.bone-brand-row').querySelectorAll('.bone-brand-chip').forEach(c=>c.classList.remove('on'));
+    btn.classList.add('on');
+    const brand = btn.dataset.brand;
+    const bwrap = document.getElementById(wrapId);
+    const type = bwrap?.dataset.boneType || '';
+    const map = this._getBoneMap(wrapId);
+    const boneCats = SHEETS.boneCats || [];
+    const products = boneCats.filter(c=>c.type===type && c.brand===brand);
+    const prodRow = document.getElementById(wrapId+'-prod-row');
+    if (!prodRow) return;
+    prodRow.innerHTML = products.map(c => {
+      const key = c.brand+'|'+c.product;
+      const qty = map.get(key) || 0;
+      const on = qty > 0 ? ' on' : '';
+      const qStr = qty > 1 ? `<span class="bone-qty"> ×${qty}</span>` : '';
+      return `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
+    }).join('');
+  },
+  _initBoneWrap(wrapId, valId, type, implant) {
+    const bwrap = document.getElementById(wrapId);
+    if (!bwrap) return;
+    const boneCats = SHEETS.boneCats || [];
+    const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length) ? SHEETS.growthFactors : ['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
+    const map = this._getBoneMap(wrapId);
+    map.clear();
+    if (implant) {
+      this._parseImplantToSelections(implant, boneCats).forEach(s => map.set(s.brand+'|'+s.product, s.qty));
+    }
+    bwrap.dataset.boneType = type;
+    const twoLevel = type === 'Trauma' || type === 'Joint';
     let h = '';
-    if(main.length) {
-      h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-      h += main.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleEsBoneChip(this)">${b}</button>`).join('');
-      h += `</div>`;
+    if (twoLevel) {
+      const typeBones = boneCats.filter(c=>c.type===type);
+      const brands = [...new Set(typeBones.map(c=>c.brand))];
+      const defBrand = type==='Trauma' ? 'AO' : 'United';
+      const startBrand = brands.includes(defBrand) ? defBrand : (brands[0]||'');
+      if (brands.length) {
+        h += `<div class="bone-section">廠牌</div><div class="chip-row wrap bone-brand-row" style="margin-top:6px">`;
+        brands.forEach(b => {
+          h += `<button type="button" class="chip bone-brand-chip${b===startBrand?' on':''}" data-brand="${b}" onclick="APP.selectBoneBrand(this,'${wrapId}')">${b}</button>`;
+        });
+        h += `</div>`;
+        const prods = typeBones.filter(c=>c.brand===startBrand);
+        h += `<div class="bone-section" style="margin-top:8px">產品</div>`;
+        h += `<div class="chip-row wrap" style="margin-top:6px" id="${wrapId}-prod-row">`;
+        prods.forEach(c => {
+          const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
+          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
+        });
+        h += `</div>`;
+      }
+    } else {
+      const prods = boneCats.filter(c=>c.type===type);
+      if (prods.length) {
+        h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
+        prods.forEach(c => {
+          const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
+          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
+        });
+        h += `</div>`;
+      }
     }
     h += `<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
-    h += growth.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleEsBoneChip(this)">${b}</button>`).join('');
+    growth.forEach(b => {
+      const key='|'+b, qty=map.get(key)||0, on=qty>0?' on':'';
+      const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+      h += `<button type="button" class="chip bone-toggle${on}" data-brand="" data-product="${b}" onclick="APP.boneChipClick(this,'${wrapId}','','${b.replace(/'/g,"\\'")}')">${b}${qStr}</button>`;
+    });
     h += `</div>`;
     bwrap.innerHTML = h;
-    document.getElementById('es-bone-val').value = implant;
+    const inp = document.getElementById(valId);
+    if (inp) inp.value = implant || '';
+    this._updateBoneVal(wrapId);
   },
-  toggleEtBoneChip(btn){ btn.classList.toggle('on'); document.getElementById('et-bone-val').value=[...document.querySelectorAll('#et-bone-wrap .bone-toggle.on')].map(c=>c.dataset.val).join(' , '); },
-  initEtBoneChips(type, implant) {
-    const bwrap = document.getElementById('et-bone-wrap');
-    const main = (SHEETS.boneCats||[]).filter(c=>c.type.trim()===type).map(c=>c.bone);
-    const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length)?SHEETS.growthFactors:['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
-    const selected = implant ? implant.split(' , ').map(s=>s.trim()) : [];
-    let h = '';
-    if(main.length) {
-      h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-      h += main.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleEtBoneChip(this)">${b}</button>`).join('');
-      h += `</div>`;
-    }
-    h += `<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
-    h += growth.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleEtBoneChip(this)">${b}</button>`).join('');
-    h += `</div>`;
-    bwrap.innerHTML = h;
-    document.getElementById('et-bone-val').value = implant;
-  },
+  initEsBoneChips(type, implant) { this._initBoneWrap('es-bone-wrap','es-bone-val', type, implant); },
+  initEtBoneChips(type, implant) { this._initBoneWrap('et-bone-wrap','et-bone-val', type, implant); },
 
+
+  initTkBoneChips(type, implant) { this._initBoneWrap('tk-bone-wrap','tk-bone-val', type, implant); },
 
   // New track area/type chips
   tkSelectArea(el, v) {
@@ -1541,29 +1847,8 @@ const APP = {
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
       sel.innerHTML = '<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
     }
-    // Update bone chips
     APP.initTkBoneChips(type, '');
   },
-  toggleTkBoneChip(btn){ btn.classList.toggle('on'); document.getElementById('tk-bone-val').value=[...document.querySelectorAll('#tk-bone-wrap .bone-toggle.on')].map(c=>c.dataset.val).join(' , '); },
-  initTkBoneChips(type, implant) {
-    const bwrap = document.getElementById('tk-bone-wrap');
-    if(!bwrap) return;
-    const main = (SHEETS.boneCats||[]).filter(c=>c.type.trim()===type).map(c=>c.bone);
-    const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length)?SHEETS.growthFactors:['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
-    const selected = implant ? implant.split(' , ').map(s=>s.trim()) : [];
-    let h = '';
-    if(main.length) {
-      h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-      h += main.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleTkBoneChip(this)">${b}</button>`).join('');
-      h += `</div>`;
-    }
-    h += `<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
-    h += growth.map(b=>`<button type="button" class="chip bone-toggle${selected.includes(b)?' on':''}" data-val="${b}" onclick="APP.toggleTkBoneChip(this)">${b}</button>`).join('');
-    h += `</div>`;
-    bwrap.innerHTML = h;
-    if(document.getElementById('tk-bone-val')) document.getElementById('tk-bone-val').value = implant;
-  },
-
   // Surgery modal chips
   selectArea(el,v){
     document.querySelectorAll('[onclick*="selectArea"]').forEach(c=>c.classList.remove('on'));
@@ -1582,26 +1867,8 @@ const APP = {
     const sel=document.getElementById('s-opname');
     const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
     sel.innerHTML='<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
-    const wrap=document.getElementById('s-bone-wrap');
-    const main=(SHEETS.boneCats||[]).filter(c=>c.type.trim()===type).map(c=>c.bone);
-    const growth=(SHEETS.growthFactors&&SHEETS.growthFactors.length)?SHEETS.growthFactors:['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
-    // Render as toggle chips instead of checkboxes
-    let h='';
-    if(main.length) {
-      h+=`<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-      h+=main.map(b=>`<button type="button" class="chip bone-toggle" data-val="${b}" onclick="APP.toggleBoneChip(this)">${b}</button>`).join('');
-      h+=`</div>`;
-    }
-    h+=`<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
-    h+=growth.map(b=>`<button type="button" class="chip bone-toggle" data-val="${b}" onclick="APP.toggleBoneChip(this)">${b}</button>`).join('');
-    h+=`</div>`;
-    wrap.innerHTML=h; this.updateBoneVal();
+    this._initBoneWrap('s-bone-wrap','s-bone-val', type, '');
   },
-  toggleBoneChip(btn){
-    btn.classList.toggle('on');
-    this.updateBoneVal();
-  },
-  updateBoneVal(){document.getElementById('s-bone-val').value=[...document.querySelectorAll('#s-bone-wrap .bone-toggle.on')].map(c=>c.dataset.val).join(' , ');},
 
   openModal(id, skipDateReset){
     const el = document.getElementById(id);

@@ -414,3 +414,20 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .scan-btn-save{flex:1;padding:8px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.88rem;font-weight:600;cursor:pointer}
 .scan-btn-edit{flex:1;padding:8px;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:.88rem;font-weight:600;cursor:pointer}
 .scan-btn-skip{padding:8px 12px;border:none;border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.88rem;cursor:pointer}
+
+/* ── 骨材記錄明細展開 ── */
+.mat-detail-list{background:var(--elevated);border-bottom:1px solid var(--border)}
+.mat-detail-row{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 28px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.88rem;color:var(--txt2)}
+.mat-detail-row:last-child{border-bottom:none}
+.mat-detail-row:active{background:var(--card)}
+.mat-detail-row.done-row{opacity:.55}
+.detail-date{flex-shrink:0;width:72px;color:var(--muted)}
+.detail-patient{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-qty{flex-shrink:0;color:var(--accent);font-weight:600}
+.detail-done{flex-shrink:0;color:var(--green);font-size:.85rem}
+
+/* ── 骨材 chip qty ── */
+.bone-qty{font-size:.8rem;font-weight:700;color:var(--accent)}
+.bone-brand-chip{border:1.5px solid var(--border)}
+.bone-brand-chip.on{border-color:var(--accent);background:var(--acc-lt);color:var(--accent)}
+.bone-section{font-size:.78rem;font-weight:600;color:var(--muted);padding:8px 0 0;letter-spacing:.04em;text-transform:uppercase}
