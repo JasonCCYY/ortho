@@ -327,12 +327,23 @@ const SHEETS = {
     if (updates.length) localStorage.removeItem('ortho_matRec2');
   },
 
+  _normDate(s) {
+    if (!s) return '';
+    const m1 = String(s).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (m1) return `${m1[1]}/${m1[2].padStart(2,'0')}/${m1[3].padStart(2,'0')}`;
+    const m2 = String(s).match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    if (m2) return `${m2[1]}/${m2[2].padStart(2,'0')}/${m2[3].padStart(2,'0')}`;
+    return String(s).trim();
+  },
   async deleteMatRecByPatientDate(name, date) {
-    if (!name || !date) return;
+    if (!name || !date) return 0;
+    const normD = this._normDate(date);
     const recs = await this.read(this.T.matRec, 'A2:G500');
     const toDelete = [];
     for (let i = 0; i < recs.length; i++) {
-      if ((recs[i][0]||'').trim() === date && (recs[i][5]||'').trim() === name) {
+      const rowDate = this._normDate(recs[i][0]);
+      const rowPat  = (recs[i][5]||'').trim();
+      if (rowDate === normD && rowPat === name.trim()) {
         toDelete.push(i + 2);
       }
     }
@@ -340,6 +351,7 @@ const SHEETS = {
       await this.clearRow(this.T.matRec, row, 'A', 'G');
     }
     if (toDelete.length) localStorage.removeItem('ortho_matRec2');
+    return toDelete.length;
   },
 
   // OP代碼更新 + 同步代碼紀錄

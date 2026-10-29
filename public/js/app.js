@@ -1511,13 +1511,16 @@ const APP = {
       const usageId = uid ? (r.usageId||'') : '';
       await SHEETS.deleteRow(tab, r._row, cols[0], cols[1], cacheMap[type],
         usageId, uid?.range, uid?.col);
-      if (type === 'sx' && r.name && r.date) {
-        await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
-      }
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
       this.refresh();
+      if (type === 'sx' && r.name && r.date) {
+        try {
+          const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
+          if (deleted > 0) this.toast(`✅ 已同步刪除 ${deleted} 筆骨材記錄`);
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
+      }
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
