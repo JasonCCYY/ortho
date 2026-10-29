@@ -715,7 +715,7 @@ const APP = {
           let q = btn.querySelector('.bone-qty');
           if (qty > 0) {
             if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
-            q.textContent = qty > 1 ? ' ×'+qty : '';
+            q.textContent = qty > 1 ? ' *'+qty : '';
           } else { q?.remove(); }
         });
         this._updateBoneVal('s-bone-wrap');
@@ -1746,7 +1746,7 @@ const APP = {
   _parseImplantToSelections(implant, boneCats) {
     if (!implant) return [];
     return implant.split(' , ').map(s=>s.trim()).filter(Boolean).map(part => {
-      const qm = part.match(/^(.+?)\s+×(\d+)$/);
+      const qm = part.match(/^(.+?)\s+[×*](\d+)$/);
       const text = qm ? qm[1].trim() : part;
       const qty  = qm ? parseInt(qm[2]) : 1;
       const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
@@ -1769,7 +1769,7 @@ const APP = {
       map.set(key, next); btn.classList.add('on');
       let q = btn.querySelector('.bone-qty');
       if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
-      q.textContent = next > 1 ? ' ×'+next : '';
+      q.textContent = next > 1 ? ' *'+next : '';
     }
     this._updateBoneVal(wrapId);
   },
@@ -1784,7 +1784,7 @@ const APP = {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
       const label = (showBrand && brand) ? brand+' '+product : product;
-      parts.push(qty > 1 ? label+' ×'+qty : label);
+      parts.push(qty > 1 ? label+' *'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
     if (inp) inp.value = parts.join(' , ');
