@@ -88,6 +88,10 @@ const SHEETS = {
     const n = new Date();
     return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`;
   },
+  nowDate() {
+    const n = new Date();
+    return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`;
+  },
 
   // ── Cached loaders ──
   async cached(key, loader) {
@@ -400,7 +404,7 @@ const SHEETS = {
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this.nowMonth(),brand,product,price,'1','門診','false'];
+    const row = [this.nowDate(),brand,product,price,'1','門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },

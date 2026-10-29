@@ -951,8 +951,8 @@ const APP = {
     try {
       let recs = await SHEETS.loadMatRecords();
       if(!recs.length) { el.innerHTML = this.empty(); return; }
-      const todayM = SHEETS.nowMonth();
-      const isManualToday = r => (r.patient==='門診'||r.patient==='') && (r.date===todayM||r.date.startsWith(todayM+'/'));
+      const todayFull = SHEETS.nowDate();
+      const isManualToday = r => (r.patient==='門診'||r.patient==='') && r.date===todayFull;
       let html = '';
       let detailCtr = 0;
       this.groupByMonth(recs).forEach(([m, rows]) => {
