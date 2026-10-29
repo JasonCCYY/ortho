@@ -1449,22 +1449,24 @@ const APP = {
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
         }
-        if (oldImplant !== newImplant) {
-          const delCount = await SHEETS.deleteMatRecByPatientDate(newName, r.date);
-          let addCount = 0;
-          if (newImplant) {
-            const matProds = await SHEETS.loadMatProducts();
-            const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
-            for (const s of boneSels) {
-              if (!s.product) continue;
-              const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
-              await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
-              addCount++;
-            }
-          }
-          this.toast('✅ 骨材記錄已同步修改');
-        }
         this.closeModal('modal-edit-sx'); this.loadSurgery();
+        if (oldImplant !== newImplant) {
+          try {
+            const delCount = await SHEETS.deleteMatRecByPatientDate(newName, r.date);
+            let addCount = 0;
+            if (newImplant) {
+              const matProds = await SHEETS.loadMatProducts();
+              const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
+              for (const s of boneSels) {
+                if (!s.product) continue;
+                const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
+                await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+                addCount++;
+              }
+            }
+            this.toast('✅ 骨材記錄已同步修改');
+          } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
+        }
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
         await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
@@ -1522,7 +1524,7 @@ const APP = {
         try {
           const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
           if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
-        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
       }
     } catch(e) { this.toast('❌ '+e.message); }
   },
@@ -1542,7 +1544,7 @@ const APP = {
         try {
           const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
           if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
-        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
       }
     } catch(e) { this.toast('❌ '+e.message); }
   },
