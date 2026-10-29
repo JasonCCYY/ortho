@@ -1761,10 +1761,10 @@ const APP = {
     const map = this._getBoneMap(wrapId);
     const key = brand + '|' + product;
     if (btn._clickTimer) {
-      // Double-click: cancel pending single-click, increment qty
+      // Double-click: cancel pending single-click, revert preview, then increment
       clearTimeout(btn._clickTimer);
       btn._clickTimer = null;
-      const next = (map.get(key) || 0) + 1;
+      const next = (map.get(key) || 0) + 1; // map not yet changed by preview
       map.set(key, next);
       btn.classList.add('on');
       let q = btn.querySelector('.bone-qty');
@@ -1773,15 +1773,16 @@ const APP = {
       this._updateBoneVal(wrapId);
       return;
     }
+    // Immediate visual preview (map unchanged until timer fires)
+    const cur = map.get(key) || 0;
+    if (cur > 0) {
+      btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
+    } else {
+      btn.classList.add('on');
+    }
     btn._clickTimer = setTimeout(() => {
       btn._clickTimer = null;
-      const cur = map.get(key) || 0;
-      if (cur > 0) {
-        map.delete(key); btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
-      } else {
-        map.set(key, 1); btn.classList.add('on');
-        const q = btn.querySelector('.bone-qty'); if (q) q.remove();
-      }
+      if (cur > 0) { map.delete(key); } else { map.set(key, 1); }
       this._updateBoneVal(wrapId);
     }, 280);
   },
