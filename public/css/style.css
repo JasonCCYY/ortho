@@ -107,8 +107,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .badge-Spine  {background:rgba(22,163,74,.12); color:#15803d;border:1px solid rgba(22,163,74,.22)}
 .badge-Hand   {background:rgba(147,51,234,.12);color:#7e22ce;border:1px solid rgba(147,51,234,.22)}
 .badge-Tumor  {background:rgba(220,38,38,.12); color:#b91c1c;border:1px solid rgba(220,38,38,.22)}
-.badge-ROI       {background:rgba(100,116,139,.12);color:#475569;border:1px solid rgba(100,116,139,.22)}
-.badge-Infection {background:rgba(20,184,166,.12); color:#0f766e;border:1px solid rgba(20,184,166,.22)}
+.badge-ROI    {background:rgba(100,116,139,.12);color:#475569;border:1px solid rgba(100,116,139,.22)}
 
 /* List content — one scrollable container per page */
 .list-content{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;display:block}
@@ -135,7 +134,6 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .col-price  {width:84px;text-align:right;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;font-size:.95rem;color:var(--green);font-weight:700;letter-spacing:-.01em;flex-shrink:0}
 .col-code   {width:52px;font-family:'JetBrains Mono',monospace;font-size:.82rem;color:var(--muted);flex-shrink:0}
 .col-area   {width:38px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
-.col-type   {width:68px;text-align:right;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end}
 .col-hosp   {width:36px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
 .col-date   {width:44px;font-size:.83rem;color:var(--txt2);flex-shrink:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;letter-spacing:-.01em}
 
@@ -149,8 +147,6 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 /* Add center button */
 .add-center-btn{flex-shrink:0;width:32px;height:32px;border:1.5px solid var(--acc-bd);background:var(--acc-lt);color:var(--accent);border-radius:50%;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .add-center-btn:active{background:var(--accent);color:white;transform:scale(.9)}
-.add-half-btn{border-color:rgba(156,163,175,.5);background:rgba(156,163,175,.1);color:#6b7280;font-size:.85rem}
-.add-half-btn:active{background:#6b7280;color:white;transform:scale(.9)}
 
 /* Done button + invisible placeholder */
 .done-btn{flex-shrink:0;width:32px;height:32px;border:1.5px solid var(--acc-bd);background:var(--acc-lt);color:var(--accent);border-radius:var(--r-sm);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center}
@@ -216,7 +212,6 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .btn-save{flex:1;padding:12px;border:none;border-radius:var(--r);font-size:1rem;font-family:'Noto Sans TC',sans-serif;cursor:pointer;font-weight:700;background:var(--accent);color:white}
 .btn-del{padding:12px 16px;border:1.5px solid #fca5a5;border-radius:var(--r);font-size:.95rem;font-family:'Noto Sans TC',sans-serif;cursor:pointer;font-weight:700;background:#fff5f5;color:var(--red)}
 .btn-save:active,.btn-cancel:active,.btn-del:active{opacity:.82}
-.btn-save:disabled{opacity:.55;cursor:not-allowed}
 .btn-next-month{flex-shrink:0;padding:8px 12px;border:1.5px solid var(--acc-bd);border-radius:var(--r-sm);background:var(--acc-lt);color:var(--accent);font-size:.88rem;font-family:'Noto Sans TC',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap}
 .btn-next-month:active{opacity:.75}
 
@@ -419,3 +414,20 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .scan-btn-save{flex:1;padding:8px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.88rem;font-weight:600;cursor:pointer}
 .scan-btn-edit{flex:1;padding:8px;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:.88rem;font-weight:600;cursor:pointer}
 .scan-btn-skip{padding:8px 12px;border:none;border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.88rem;cursor:pointer}
+
+/* ── 骨材記錄明細展開 ── */
+.mat-detail-list{background:var(--elevated);border-bottom:1px solid var(--border)}
+.mat-detail-row{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 28px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.88rem;color:var(--txt2)}
+.mat-detail-row:last-child{border-bottom:none}
+.mat-detail-row:active{background:var(--card)}
+.mat-detail-row.done-row{opacity:.55}
+.detail-date{flex-shrink:0;width:72px;color:var(--muted)}
+.detail-patient{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-qty{flex-shrink:0;color:var(--accent);font-weight:600}
+.detail-done{flex-shrink:0;color:var(--green);font-size:.85rem}
+
+/* ── 骨材 chip qty ── */
+.bone-qty{font-size:.8rem;font-weight:700;color:var(--accent)}
+.bone-brand-chip{border:1.5px solid var(--border)}
+.bone-brand-chip.on{border-color:var(--accent);background:var(--acc-lt);color:var(--accent)}
+.bone-section{font-size:.78rem;font-weight:600;color:var(--muted);padding:8px 0 0;letter-spacing:.04em;text-transform:uppercase}

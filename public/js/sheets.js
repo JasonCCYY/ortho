@@ -19,7 +19,7 @@ const SHEETS = {
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
 
   // ── Cache helpers ──
-  _CACHE_VER: 'v2',  // 欄位結構異動時遞增，強制清除所有舊快取
+  _CACHE_VER: 'v3',  // 欄位結構異動時遞增，強制清除所有舊快取
   _STALE_TTL: 30 * 60 * 1000,  // 30 分鐘：超過視為 stale，返回快取並強制背景刷新
   initCache() {
     if (localStorage.getItem('ortho_cacheVer') !== this._CACHE_VER) {
@@ -152,7 +152,7 @@ const SHEETS = {
       const rows = await this.read(this.T.matRec, 'A2:G500');
       return rows.filter(r=>r[0]).map((r,i)=>({
         _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
-        price:r[3]||'', qty:r[4]||'', done:r[5]||'', todayNew:r[6]||''
+        price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('matRec2', load);
@@ -160,13 +160,13 @@ const SHEETS = {
 
   async loadMatProducts() {
     const load = async () => {
-      const rows = await this.read(this.T.matProd, 'A2:F300');
+      const rows = await this.read(this.T.matProd, 'A2:G300');
       if (!rows.length) return [];
       // 自動偵測：A欄若是 itemId 格式（如 A1、Ru1）則有 id 欄，否則直接從廠牌開始
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
       return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
-        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'' }
-        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'' }
+        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'' }
+        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'' }
       );
     };
     return this.cached('matProd', load);
@@ -233,17 +233,17 @@ const SHEETS = {
 
   async loadCategories() {
     try {
-      const [opRows, boneRows] = await Promise.all([
+      const [opRows, prods] = await Promise.all([
         this.read(this.T.opCat, 'A2:B200'),
-        this.read(this.T.boneCat, 'A2:C200')
+        this.loadMatProducts()
       ]);
       this.opCats = opRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), name:(r[1]||'').trim()}));
-      const allBone = boneRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), bone:(r[1]||'').trim(), abbrev:(r[2]||'').trim()}));
-      this.growthFactors = allBone.filter(r=>r.type==='生長因子').map(r=>r.bone);
-      this.boneCats = allBone.filter(r=>r.type!=='生長因子');
-      // 縮寫對照表 {縮寫: 骨材完整名稱}
+      // boneCats: {brand, product, type, abbrev} from 骨材產品
+      this.boneCats = prods.filter(p => p.type !== '生長因子');
+      this.growthFactors = prods.filter(p => p.type === '生長因子').map(p => p.product);
+      // 縮寫對照表 {縮寫: 產品名稱}
       this.boneAbbrevs = {};
-      allBone.forEach(r => { if(r.abbrev) this.boneAbbrevs[r.abbrev] = r.bone; });
+      prods.forEach(p => { if(p.abbrev) this.boneAbbrevs[p.abbrev] = p.product; });
     } catch(e) { console.warn('Category load failed:', e); }
   },
 
@@ -269,14 +269,58 @@ const SHEETS = {
   },
 
   async updateMatRow(row, d) {
-    const done = d.done !== undefined ? d.done : '';
-    await this.put(this.T.matRec+'!A'+row+':F'+row, [[d.date,d.brand,d.product,d.price,d.qty,done]]);
+    const done = d.done !== undefined ? d.done : 'false';
+    await this.put(this.T.matRec+'!A'+row+':G'+row, [[d.date,d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
     localStorage.removeItem('ortho_matRec2');
   },
 
   async setDone(row) {
-    await this.put(this.T.matRec+'!F'+row, [['true']]);
+    await this.put(this.T.matRec+'!G'+row, [['true']]);
     localStorage.removeItem('ortho_matRec2');
+  },
+
+  async setDoneForMonth(month, brand, product) {
+    const recs = await this.read(this.T.matRec, 'A2:G500');
+    const updates = [];
+    for (let i = 0; i < recs.length; i++) {
+      const rowDate = (recs[i][0]||'').trim();
+      const rowMonth = rowDate.length >= 7 ? rowDate.substring(0, 7) : rowDate;
+      const rowBrand = (recs[i][1]||'').trim();
+      const rowProd  = (recs[i][2]||'').trim();
+      const isDone   = (recs[i][6]||'').toLowerCase() === 'true';
+      if (rowMonth === month && rowBrand === brand && rowProd === product && !isDone) {
+        updates.push(i + 2);
+      }
+    }
+    for (const row of updates) {
+      await this.put(this.T.matRec+'!G'+row, [['true']]);
+    }
+    if (updates.length) localStorage.removeItem('ortho_matRec2');
+  },
+
+  async addMatFromSurgery(d) {
+    const row = [d.date, d.brand, d.product, d.price||'', d.qty||1, d.patient, 'false'];
+    const r = await this.append(this.T.matRec, [row]);
+    localStorage.removeItem('ortho_matRec2'); return r;
+  },
+
+  async updatePatientInMatRec(oldName, newName, date) {
+    if (!oldName || !newName || oldName === newName) return;
+    const recs = await this.read(this.T.matRec, 'A2:G500');
+    const updates = [];
+    const targetMonth = date ? date.substring(0, 7) : '';
+    for (let i = 0; i < recs.length; i++) {
+      const rowDate    = (recs[i][0]||'').trim();
+      const rowPatient = (recs[i][5]||'').trim();
+      const rowMonth   = rowDate.length >= 7 ? rowDate.substring(0, 7) : rowDate;
+      if (rowPatient === oldName && (!targetMonth || rowMonth === targetMonth)) {
+        updates.push(i + 2);
+      }
+    }
+    for (const row of updates) {
+      await this.put(this.T.matRec+'!F'+row, [[newName]]);
+    }
+    if (updates.length) localStorage.removeItem('ortho_matRec2');
   },
 
   // OP代碼更新 + 同步代碼紀錄
@@ -350,13 +394,13 @@ const SHEETS = {
   },
 
   async addMat(d) {
-    const row = [d.date,d.brand,d.product,d.price,d.qty,'false','TRUE'];
+    const row = [d.date,d.brand,d.product,d.price,d.qty,d.patient||'門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this.nowMonth(),brand,product,price,'1','false','TRUE'];
+    const row = [this.nowMonth(),brand,product,price,'1','門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
