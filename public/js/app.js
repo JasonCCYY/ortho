@@ -1802,10 +1802,9 @@ const APP = {
   },
   _boneAbbrev(brand, product, showBrand) {
     if (!showBrand || !brand) return product;
-    if ((brand + ' ' + product).startsWith('AO Depuy') || brand === 'AO Depuy') return 'Depuy';
-    if (brand === 'United' && product === 'O cement') return 'O cement';
+    if (['O cement', 'Depuy'].includes(product)) return product;
     if (brand === 'AO') {
-      if (['TFNA','hook','H-nail'].includes(product)) return 'AO ' + product;
+      if (['TFNA', 'hook', 'H-nail'].includes(product)) return 'AO ' + product;
       return 'AO';
     }
     return brand + ' ' + product;
