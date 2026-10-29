@@ -1441,9 +1441,23 @@ const APP = {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
         const oldName = r.name || '';
         const newName = document.getElementById('es-name').value;
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
+        const oldImplant = r.implant || '';
+        const newImplant = document.getElementById('es-bone-val').value || '';
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
+        }
+        if (oldImplant !== newImplant) {
+          await SHEETS.deleteMatRecByPatientDate(newName, r.date);
+          if (newImplant) {
+            const matProds = await SHEETS.loadMatProducts();
+            const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
+            for (const s of boneSels) {
+              if (!s.product) continue;
+              const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
+              await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+            }
+          }
         }
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
@@ -1495,6 +1509,9 @@ const APP = {
       const usageId = uid ? (r.usageId||'') : '';
       await SHEETS.deleteRow(tab, r._row, cols[0], cols[1], cacheMap[type],
         usageId, uid?.range, uid?.col);
+      if (type === 'sx' && r.name && r.date) {
+        await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
+      }
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
@@ -1509,6 +1526,7 @@ const APP = {
     try {
       await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
       await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      if (r.name && r.date) await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移至追蹤');

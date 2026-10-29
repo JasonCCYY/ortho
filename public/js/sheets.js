@@ -327,6 +327,21 @@ const SHEETS = {
     if (updates.length) localStorage.removeItem('ortho_matRec2');
   },
 
+  async deleteMatRecByPatientDate(name, date) {
+    if (!name || !date) return;
+    const recs = await this.read(this.T.matRec, 'A2:G500');
+    const toDelete = [];
+    for (let i = 0; i < recs.length; i++) {
+      if ((recs[i][0]||'').trim() === date && (recs[i][5]||'').trim() === name) {
+        toDelete.push(i + 2);
+      }
+    }
+    for (const row of toDelete) {
+      await this.clearRow(this.T.matRec, row, 'A', 'G');
+    }
+    if (toDelete.length) localStorage.removeItem('ortho_matRec2');
+  },
+
   // OP代碼更新 + 同步代碼紀錄
   async updateOpCode(row, d, syncPrices) {
     await this.put(this.T.opCode+'!A'+row+':E'+row, [[d.code,d.name,d.price,d.area,d.type||'']]);
