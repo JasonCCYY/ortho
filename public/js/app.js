@@ -1775,11 +1775,15 @@ const APP = {
   },
   _updateBoneVal(wrapId) {
     const map = this._getBoneMap(wrapId);
+    const prefix = wrapId.replace('-bone-wrap', '');
+    const typeEl = document.getElementById(prefix + '-type-val');
+    const boneType = typeEl ? typeEl.value : '';
+    const showBrand = boneType === 'Trauma' || boneType === 'Joint';
     const parts = [];
     map.forEach((qty, key) => {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
-      const label = brand ? brand+' '+product : product;
+      const label = (showBrand && brand) ? brand+' '+product : product;
       parts.push(qty > 1 ? label+' ×'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
