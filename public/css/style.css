@@ -425,7 +425,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .mat-detail-row.done-row{opacity:.55}
 .detail-date{flex-shrink:0;width:72px;color:var(--muted)}
 .detail-patient{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.detail-qty{flex-shrink:0;color:var(--accent);font-weight:600}
+.detail-qty{color:var(--accent);font-weight:600}
 .detail-done{flex-shrink:0;color:var(--green);font-size:.85rem}
 
 /* ── 骨材 chip qty ── */
