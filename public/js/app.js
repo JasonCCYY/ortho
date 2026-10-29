@@ -994,7 +994,7 @@ const APP = {
             const clickAttr = isManual ? ` onclick="APP.openDetailS('mat',${_si})" style="cursor:pointer"` : '';
             html += `<div class="mat-detail-row${isDone?' done-row':''}"${clickAttr}>
               <span class="${isNewRow?'new-dot':'dot-ph'}"></span>
-              <span class="detail-date">${r.date}</span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date) ? r.date.slice(5) : r.date}</span>
               <span class="detail-patient">${r.patient||''}</span>
               <span class="detail-qty">×${r.qty||1}</span>
               ${isDone?'<span class="detail-done">✓</span>':''}
