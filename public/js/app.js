@@ -1751,7 +1751,8 @@ const APP = {
       const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
       const byP  = boneCats.find(c=>c.product===text);
       const byB  = boneCats.find(c=>c.brand===text);
-      const m = byBP || byP || byB;
+      const byAb = boneCats.find(c=>this._boneAbbrev(c.brand,c.product,true)===text);
+      const m = byBP || byP || byB || byAb;
       if (m) return { brand:m.brand, product:m.product, qty };
       return { brand:'', product:text, qty };
     });
@@ -1799,6 +1800,16 @@ const APP = {
       this._updateBoneVal(wrapId);
     }, 280);
   },
+  _boneAbbrev(brand, product, showBrand) {
+    if (!showBrand || !brand) return product;
+    if ((brand + ' ' + product).startsWith('AO Depuy') || brand === 'AO Depuy') return 'Depuy';
+    if (brand === 'United' && product === 'O cement') return 'O cement';
+    if (brand === 'AO') {
+      if (['TFNA','hook','H-nail'].includes(product)) return 'AO ' + product;
+      return 'AO';
+    }
+    return brand + ' ' + product;
+  },
   _updateBoneVal(wrapId) {
     const map = this._getBoneMap(wrapId);
     const prefix = wrapId.replace('-bone-wrap', '');
@@ -1809,7 +1820,7 @@ const APP = {
     map.forEach((qty, key) => {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
-      const label = (showBrand && brand) ? brand+' '+product : product;
+      const label = this._boneAbbrev(brand, product, showBrand);
       parts.push(qty > 1 ? label+'*'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
