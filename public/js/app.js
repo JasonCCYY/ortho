@@ -1450,7 +1450,8 @@ const APP = {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
         }
         if (oldImplant !== newImplant) {
-          await SHEETS.deleteMatRecByPatientDate(newName, r.date);
+          const delCount = await SHEETS.deleteMatRecByPatientDate(newName, r.date);
+          let addCount = 0;
           if (newImplant) {
             const matProds = await SHEETS.loadMatProducts();
             const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
@@ -1458,8 +1459,10 @@ const APP = {
               if (!s.product) continue;
               const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
               await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+              addCount++;
             }
           }
+          this.toast(`✅ 骨材記錄：刪除 ${delCount} 筆，新增 ${addCount} 筆`);
         }
         this.closeModal('modal-edit-sx'); this.loadSurgery();
       } else if(type==='track') {
@@ -1531,11 +1534,16 @@ const APP = {
     try {
       await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
       await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
-      if (r.name && r.date) await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移至追蹤');
       this.refresh();
+      if (r.name && r.date) {
+        try {
+          const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
+          if (deleted > 0) this.toast(`✅ 骨材記錄：已刪除 ${deleted} 筆`);
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗: '+e2.message); }
+      }
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
