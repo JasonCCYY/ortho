@@ -1760,18 +1760,30 @@ const APP = {
   boneChipClick(btn, wrapId, brand, product) {
     const map = this._getBoneMap(wrapId);
     const key = brand + '|' + product;
-    const cur = map.get(key) || 0;
-    const next = cur >= 3 ? 0 : cur + 1;
-    if (next === 0) {
-      map.delete(key); btn.classList.remove('on');
-      btn.querySelector('.bone-qty')?.remove();
-    } else {
-      map.set(key, next); btn.classList.add('on');
+    if (btn._clickTimer) {
+      // Double-click: cancel pending single-click, increment qty
+      clearTimeout(btn._clickTimer);
+      btn._clickTimer = null;
+      const next = (map.get(key) || 0) + 1;
+      map.set(key, next);
+      btn.classList.add('on');
       let q = btn.querySelector('.bone-qty');
       if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
       q.textContent = next > 1 ? '*'+next : '';
+      this._updateBoneVal(wrapId);
+      return;
     }
-    this._updateBoneVal(wrapId);
+    btn._clickTimer = setTimeout(() => {
+      btn._clickTimer = null;
+      const cur = map.get(key) || 0;
+      if (cur > 0) {
+        map.delete(key); btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
+      } else {
+        map.set(key, 1); btn.classList.add('on');
+        const q = btn.querySelector('.bone-qty'); if (q) q.remove();
+      }
+      this._updateBoneVal(wrapId);
+    }, 280);
   },
   _updateBoneVal(wrapId) {
     const map = this._getBoneMap(wrapId);
