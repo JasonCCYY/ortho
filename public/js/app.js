@@ -975,13 +975,13 @@ const APP = {
           const detailId = 'mat-det-' + (detailCtr++);
           const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
           const totalVal = cleanP * totalQty;
-          const totalSub = (cleanP && totalQty > 1) ? `<span class="mat-total-sub">=$${totalVal.toLocaleString()}</span>` : '';
+          const subLine = (totalQty > 1 && cleanP) ? `<span class="mat-agg-sub">×${totalQty}=$${totalVal.toLocaleString()}</span>` : '';
           html += `<div class="list-row" onclick="APP.toggleMatDetail('${detailId}')">
             <span class="${hasNewManual?'new-dot':'dot-ph'}"></span>
             <span class="col-brand">${g.brand}</span>
-            <span class="col-product">${g.product}</span>
-            <span class="col-qty">×${totalQty}</span>
-            <span class="col-price mat-price-cell">${cleanP?'$'+cleanP.toLocaleString():''}${totalSub}</span>
+            <span class="col-product mat-agg-product">${g.product}${subLine}</span>
+            <span class="col-qty">${totalQty}</span>
+            <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             ${allDone?'<span class="done-ph"></span>':`<button class="done-btn" onclick="event.stopPropagation();APP.markDoneGroup('${em}','${eb}','${ep}')" title="標記全部完成">☑</button>`}
           </div>`;
           // Detail rows (hidden by default)
