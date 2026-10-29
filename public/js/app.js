@@ -951,6 +951,8 @@ const APP = {
     try {
       let recs = await SHEETS.loadMatRecords();
       if(!recs.length) { el.innerHTML = this.empty(); return; }
+      const todayM = SHEETS.nowMonth();
+      const isManualToday = r => (r.patient==='門診'||r.patient==='') && (r.date===todayM||r.date.startsWith(todayM+'/'));
       let html = '';
       let detailCtr = 0;
       this.groupByMonth(recs).forEach(([m, rows]) => {
@@ -969,10 +971,11 @@ const APP = {
           const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
           const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
           const allDone = g.rows.length > 0 && g.rows.every(r=>r.done?.toLowerCase()==='true');
+          const hasNewManual = g.rows.some(isManualToday);
           const detailId = 'mat-det-' + (detailCtr++);
           const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
           html += `<div class="list-row" onclick="APP.toggleMatDetail('${detailId}')">
-            <span class="dot-ph"></span>
+            <span class="${hasNewManual?'new-dot':'dot-ph'}"></span>
             <span class="col-brand">${g.brand}</span>
             <span class="col-product">${g.product}</span>
             <span class="col-qty">×${totalQty}</span>
@@ -984,7 +987,9 @@ const APP = {
           g.rows.forEach(r => {
             const _si = APP._storeRow(r);
             const isDone = r.done?.toLowerCase()==='true';
+            const isNewRow = isManualToday(r);
             html += `<div class="mat-detail-row${isDone?' done-row':''}" onclick="APP.openDetailS('mat',${_si})">
+              <span class="${isNewRow?'new-dot':'dot-ph'}"></span>
               <span class="detail-date">${r.date}</span>
               <span class="detail-patient">${r.patient||''}</span>
               <span class="detail-qty">×${r.qty||1}</span>
