@@ -1756,21 +1756,34 @@ const APP = {
       return { brand:'', product:text, qty };
     });
   },
+  _getBoneDir(wrapId) {
+    if (!this._boneDirState) this._boneDirState = {};
+    if (!this._boneDirState[wrapId]) this._boneDirState[wrapId] = new Map();
+    return this._boneDirState[wrapId];
+  },
   boneChipClick(btn, wrapId, brand, product) {
     const map = this._getBoneMap(wrapId);
+    const dir = this._getBoneDir(wrapId);
     const key = brand + '|' + product;
     if (btn._clickTimer) {
       // Double-click: cancel pending single-click, deselect
       clearTimeout(btn._clickTimer);
       btn._clickTimer = null;
-      map.delete(key);
+      map.delete(key); dir.delete(key);
       btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
       this._updateBoneVal(wrapId);
       return;
     }
-    // Single click: cycle 0→1→2→3→0, show preview immediately
+    // Single click: cycle 0→1→2→3→2→1→0, show preview immediately
     const cur = map.get(key) || 0;
-    const next = cur >= 3 ? 0 : cur + 1;
+    const goingDown = dir.get(key) || false;
+    let next, nextDown;
+    if (cur === 0)           { next = 1; nextDown = false; }
+    else if (cur === 3)      { next = 2; nextDown = true; }
+    else if (goingDown) {
+      if (cur === 1)         { next = 0; nextDown = false; }
+      else                   { next = cur - 1; nextDown = true; }
+    } else                   { next = cur + 1; nextDown = false; }
     if (next === 0) {
       btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
     } else {
@@ -1781,7 +1794,8 @@ const APP = {
     }
     btn._clickTimer = setTimeout(() => {
       btn._clickTimer = null;
-      if (next === 0) { map.delete(key); } else { map.set(key, next); }
+      if (next === 0) { map.delete(key); dir.delete(key); }
+      else { map.set(key, next); dir.set(key, nextDown); }
       this._updateBoneVal(wrapId);
     }, 280);
   },
@@ -1835,6 +1849,7 @@ const APP = {
     const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length) ? SHEETS.growthFactors : ['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
     const map = this._getBoneMap(wrapId);
     map.clear();
+    this._getBoneDir(wrapId).clear();
     if (implant) {
       this._parseImplantToSelections(implant, boneCats).forEach(s => map.set(s.brand+'|'+s.product, s.qty));
     }
