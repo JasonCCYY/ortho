@@ -419,7 +419,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .mat-agg-product{white-space:normal;display:flex;flex-direction:column;gap:1px}
 .mat-agg-sub{font-size:.8rem;color:var(--muted);font-weight:400;letter-spacing:0}
 .mat-detail-list{background:var(--elevated);border-bottom:1px solid var(--border)}
-.mat-detail-row{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 28px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.88rem;color:var(--txt2)}
+.mat-detail-row{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 28px;border-bottom:1px solid var(--border);cursor:default;font-size:.88rem;color:var(--txt2)}
 .mat-detail-row:last-child{border-bottom:none}
 .mat-detail-row:active{background:var(--card)}
 .mat-detail-row.done-row{opacity:.55}

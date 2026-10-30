@@ -1910,8 +1910,6 @@ const APP = {
     });
     h += `</div>`;
     bwrap.innerHTML = h;
-    const inp = document.getElementById(valId);
-    if (inp) inp.value = implant || '';
     this._updateBoneVal(wrapId);
   },
   initEsBoneChips(type, implant) { this._initBoneWrap('es-bone-wrap','es-bone-val', type, implant); },
