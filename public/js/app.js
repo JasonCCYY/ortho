@@ -637,6 +637,22 @@ const APP = {
       // 從代碼取類型（取第一個有 type 的代碼）
       const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
 
+      // 建立骨材字串（使用 surgRecord）
+      let implant = '';
+      if (p.implants && p.implants.length) {
+        const allProds = SHEETS.matProds || [];
+        implant = p.implants.map(impl => {
+          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+          const text = qm ? qm[1].trim() : impl.trim();
+          const qty  = qm ? parseInt(qm[2]) : 1;
+          const m = allProds.find(c => c.product.toLowerCase() === text.toLowerCase())
+                 || allProds.find(c => (c.brand+' '+c.product).toLowerCase() === text.toLowerCase())
+                 || allProds.find(c => c.surgRecord && c.surgRecord.toLowerCase() === text.toLowerCase());
+          const label = m?.surgRecord || text;
+          return qty > 1 ? label + '*' + qty : label;
+        }).join(' , ');
+      }
+
       // 新增手術紀錄
       await SHEETS.addOp({
         date: p.date,
@@ -644,10 +660,10 @@ const APP = {
         mrn: p.mrn,
         clinicId: '',
         name: p.name,
-        type: typeFromCode,
-        opName: '',
-        location: '',
-        implant: '',
+        type: p.type || typeFromCode,
+        opName: p.opName || '',
+        location: p.location || '',
+        implant,
         note: p.note,
       });
 
@@ -684,7 +700,7 @@ const APP = {
         c.classList.toggle('on', c.textContent.trim() === '中正');
       });
       // 預填類型
-      const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
+      const typeFromCode = p.type || (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
       if(typeFromCode) {
         document.getElementById('s-type-val').value = typeFromCode;
         document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c => {
@@ -694,18 +710,21 @@ const APP = {
         if(p.opName) document.getElementById('s-opname').value = p.opName;
         if(p.location) document.getElementById('s-location').value = p.location;
       }
-      // 自動勾選骨材/生長因子
+      // 自動勾選骨材/生長因子（解析數量）
       if(p.implants && p.implants.length) {
         const bCats = SHEETS.boneCats || [];
         const map = this._getBoneMap('s-bone-wrap');
         p.implants.forEach(impl => {
-          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===impl.toLowerCase());
-          const byP  = bCats.find(c => c.product.toLowerCase()===impl.toLowerCase());
-          const byB  = bCats.find(c => c.brand.toLowerCase()===impl.toLowerCase());
-          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===impl.toLowerCase());
+          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+          const text = qm ? qm[1].trim() : impl.trim();
+          const qty  = qm ? parseInt(qm[2]) : 1;
+          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===text.toLowerCase());
+          const byP  = bCats.find(c => c.product.toLowerCase()===text.toLowerCase());
+          const byB  = bCats.find(c => c.brand.toLowerCase()===text.toLowerCase());
+          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===text.toLowerCase());
           const m = byBP || byP || byB;
-          if (m) map.set(m.brand+'|'+m.product, 1);
-          else if (gf) map.set('|'+gf, 1);
+          if (m) map.set(m.brand+'|'+m.product, qty);
+          else if (gf) map.set('|'+gf, qty);
         });
         // Refresh visible chip states
         document.querySelectorAll('#s-bone-wrap .bone-toggle').forEach(btn => {
