@@ -669,7 +669,7 @@ const APP = {
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date });
       }
 
       // 同步骨材記錄
