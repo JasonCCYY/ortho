@@ -1751,8 +1751,8 @@ const APP = {
       const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
       const byP  = boneCats.find(c=>c.product===text);
       const byB  = boneCats.find(c=>c.brand===text);
-      const byAb = boneCats.find(c=>this._boneAbbrev(c.brand,c.product,true)===text);
-      const m = byBP || byP || byB || byAb;
+      const bySr = (SHEETS.matProds||[]).find(c=>c.surgRecord===text);
+      const m = byBP || byP || byB || bySr;
       if (m) return { brand:m.brand, product:m.product, qty };
       return { brand:'', product:text, qty };
     });
@@ -1800,27 +1800,17 @@ const APP = {
       this._updateBoneVal(wrapId);
     }, 280);
   },
-  _boneAbbrev(brand, product, showBrand) {
-    if (!showBrand || !brand) return product;
-    if (SHEETS.growthFactors && SHEETS.growthFactors.includes(product)) return product;
-    if (['O cement', 'Depuy'].includes(product)) return product;
-    if (brand === 'AO') {
-      if (['TFNA', 'hook', 'H-nail'].includes(product)) return 'AO ' + product;
-      return 'AO';
-    }
-    return brand + ' ' + product;
-  },
   _updateBoneVal(wrapId) {
     const map = this._getBoneMap(wrapId);
-    const prefix = wrapId.replace('-bone-wrap', '');
-    const typeEl = document.getElementById(prefix + '-type-val');
-    const boneType = typeEl ? typeEl.value : '';
-    const showBrand = boneType === 'Trauma' || boneType === 'Joint';
+    const allProds = SHEETS.matProds || [];
     const parts = [];
     map.forEach((qty, key) => {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
-      const label = this._boneAbbrev(brand, product, showBrand);
+      const cat = brand
+        ? allProds.find(c => c.brand === brand && c.product === product)
+        : allProds.find(c => c.product === product);
+      const label = cat?.surgRecord || product;
       parts.push(qty > 1 ? label+'*'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));

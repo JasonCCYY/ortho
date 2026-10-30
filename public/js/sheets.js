@@ -164,13 +164,13 @@ const SHEETS = {
 
   async loadMatProducts() {
     const load = async () => {
-      const rows = await this.read(this.T.matProd, 'A2:G300');
+      const rows = await this.read(this.T.matProd, 'A2:H300');
       if (!rows.length) return [];
       // 自動偵測：A欄若是 itemId 格式（如 A1、Ru1）則有 id 欄，否則直接從廠牌開始
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
       return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
-        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'' }
-        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'' }
+        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'', surgRecord:r[7]||'' }
+        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'', surgRecord:r[6]||'' }
       );
     };
     return this.cached('matProd', load);
@@ -243,6 +243,7 @@ const SHEETS = {
       ]);
       this.opCats = opRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), name:(r[1]||'').trim()}));
       // boneCats: {brand, product, type, abbrev} from 骨材產品
+      this.matProds = prods;
       this.boneCats = prods.filter(p => p.type !== '生長因子');
       this.growthFactors = prods.filter(p => p.type === '生長因子').map(p => p.product);
       // 縮寫對照表 {縮寫: 產品名稱}
