@@ -672,6 +672,21 @@ const APP = {
         await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
       }
 
+      // 同步骨材記錄
+      if (implant) {
+        const matProds = await SHEETS.loadMatProducts();
+        const boneSels = this._parseImplantToSelections(implant, SHEETS.boneCats || []);
+        for (const s of boneSels) {
+          if (!s.product) continue;
+          const prod = matProds.find(mp => mp.brand === s.brand && mp.product === s.product)
+                    || matProds.find(mp => mp.product === s.product);
+          await SHEETS.addMatFromSurgery({
+            date: p.date, brand: s.brand || prod?.brand || s.product,
+            product: s.product, price: prod?.price || '', qty: s.qty || 1, patient: p.name
+          });
+        }
+      }
+
       this.toast(`✅ ${p.name} 已新增`);
       card.style.opacity = '0.4';
       card.style.pointerEvents = 'none';
