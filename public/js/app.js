@@ -1084,13 +1084,15 @@ const APP = {
 
       // Card 2: 類型分布
       if(types.length) {
+        const mTotal = mOps.length || 1;
         let typeHtml = types.map(([type, cnt]) => {
           const color = TYPE_COLOR[type] || 'var(--accent)';
           const pct = Math.round(cnt/maxT*100);
+          const pctLabel = Math.round(cnt/mTotal*100);
           return `<div class="stats-type-row">
             <span class="badge badge-${type}" style="min-width:62px;text-align:center">${type}</span>
             <div class="stats-bar-bg"><div class="stats-bar" style="width:${pct}%;background:${color}"></div></div>
-            <span class="stats-type-n">${cnt}</span>
+            <span class="stats-type-n">${cnt} <span style="color:var(--muted);font-size:.8em">${pctLabel}%</span></span>
           </div>`;
         }).join('');
         parts.push(`<div class="stats-card"><div class="stats-card-title">類型分布</div>${typeHtml}</div>`);
@@ -1172,9 +1174,10 @@ const APP = {
       const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
       const allZh = ops.filter(r=>r.area==='中正').length, allYc = ops.filter(r=>r.area==='右昌').length, allOther = ops.length-allZh-allYc;
       const allAreaText = [allZh?`中正 ${allZh}`:'', allYc?`右昌 ${allYc}`:'', allOther?`其他 ${allOther}`:''].filter(Boolean).join(' ／ ');
+      const allTotal = ops.length || 1;
       const allTypeHtml = allTypes.map(([t,n])=>`<div class="stats-type-row">
         <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
-        <span class="stats-type-n" style="margin-left:auto">${n}</span>
+        <span class="stats-type-n" style="margin-left:auto">${n} <span style="color:var(--muted);font-size:.8em">${Math.round(n/allTotal*100)}%</span></span>
       </div>`).join('');
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">累積總量（114/8 起）</div>
