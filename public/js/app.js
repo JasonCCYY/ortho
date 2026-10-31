@@ -878,7 +878,7 @@ const APP = {
 
   // ── Refresh ──
   refresh() {
-    const cacheMap = { sxList:'op', track:'track', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
+    const cacheMap = { sxList:'op', track:'track', stats:'op', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
     if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
