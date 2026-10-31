@@ -1102,7 +1102,7 @@ const APP = {
         months12.push(`${td.getFullYear()}/${String(td.getMonth()+1).padStart(2,'0')}`);
       }
       const monthlyCounts = months12.map(m => ({
-        label: m.substring(0,4) !== String(sy) ? m.substring(2) : m.substring(5),
+        label: m.substring(5),
         count: ops.filter(r => r.date && r.date.startsWith(m)).length,
         isCur: m === this._statsMonth,
       }));
