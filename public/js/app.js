@@ -1477,6 +1477,8 @@ const APP = {
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
             ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+            <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},false)" title="新增" style="flex-shrink:0">＋</button>
+            <button class="add-center-btn add-half-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},true)" title="半價" style="flex-shrink:0">½</button>
           </div>`;
         });
       });
@@ -1673,14 +1675,20 @@ const APP = {
     try { await SHEETS.quickAddMat(brand, product, price); this._markAddedToday('mat', SHEETS.nowDate()+'|'+brand+'|'+product+'|門診'); this.toast(`✅ 已新增 ${product}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCode(name, code, price, area, type='') {
-    try { await SHEETS.quickAddCode({name,code,price,area,type}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
+  async qAddCode(name, code, price, area, type='', patient='') {
+    try { await SHEETS.quickAddCode({name,code,price,area,type,patient}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCodeHalf(name, code, price, area, type='') {
+  async qAddCodeHalf(name, code, price, area, type='', patient='') {
     const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
-    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type, patient}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
+  },
+  qAddCodeManual(idx, isHalf) {
+    const r = this._getRow(idx);
+    if(!r) return;
+    if(isHalf) this.qAddCodeHalf(r.name, r.code, r.price, r.area, r.type||'', '手動');
+    else this.qAddCode(r.name, r.code, r.price, r.area, r.type||'', '手動');
   },
   async qAddClinic(name, price) {
     try { await SHEETS.quickAddClinic(name, price); this._markAddedToday('clinic', SHEETS.nowMonth()+'|'+name); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }

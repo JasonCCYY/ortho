@@ -466,7 +466,7 @@ const SHEETS = {
 
   async quickAddCode(d) {
     const month = d.date ? String(d.date).substring(0, 7) : this.nowMonth();
-    const r = await this.append(this.T.codeRec, [[month,d.name,d.price,d.code,d.area,'1',d.type||'']]);
+    const r = await this.append(this.T.codeRec, [[month,d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
