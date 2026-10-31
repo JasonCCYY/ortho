@@ -1412,7 +1412,10 @@ const APP = {
         const groups = {};
         list.forEach(r => { (groups[r.brand]=groups[r.brand]||[]).push(r); });
         let html = '';
-        Object.entries(groups).sort((a,b)=>this.sortBrands(a[0],b[0])).forEach(([brand,rows]) => {
+        Object.entries(groups).sort((a,b)=>{
+          if(a[0]==='小施') return -1; if(b[0]==='小施') return 1;
+          return this.sortBrands(a[0],b[0]);
+        }).forEach(([brand,rows]) => {
           html += `<div class="list-group-hdr">${brand}</div>`;
           rows.forEach(r => {
             const cleanP = String(r.price||'').replace(/,/g,'').trim();
