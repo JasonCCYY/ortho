@@ -1544,7 +1544,7 @@ const APP = {
             const isNew = this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
             html += `<div class="mat-detail-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})" style="cursor:pointer">
               <span class="${isNew?'new-dot':'dot-ph'}"></span>
-              <span class="detail-date">${(p=>{return p.length>=3?p[1]+'/'+p[2]:p.length>=2?p[1]:r.date})(r.date.split('/'))}</span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date)?r.date.slice(5):r.date}</span>
               <span class="detail-patient" style="flex:1">${r.patient||'—'}</span>
               <span class="detail-qty"> *${r.qty||1}</span>
             </div>`;
