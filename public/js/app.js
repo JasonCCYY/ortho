@@ -1022,7 +1022,7 @@ const APP = {
       { cat:'人工關節', label:'TKA',  re:/TKA/i  },
       { cat:'',         label:'THA',  re:/THA/i  },
       { cat:'',         label:'RTSA', re:/RTSA/i },
-      { cat:'肩關節鏡', label:'RCT',  re:/RCT/i  },
+      { cat:'肩關節鏡', label:'RCT',  re:/RCT(?!\s*open)/i },
       { cat:'',         label:'SLAP', re:/SLAP/i },
     ];
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
@@ -1045,9 +1045,12 @@ const APP = {
       const maxT = types[0]?.[1] || 1;
 
       // 指標性手術
+      const year = this._statsMonth.substring(0, 4);
+      const yOps = ops.filter(r => r.date && r.date.startsWith(year));
       const keyCounts = KEY_SX.map(k => ({
         ...k,
         month: mOps.filter(r => k.re.test(r.opName||'')).length,
+        yr:    yOps.filter(r => k.re.test(r.opName||'')).length,
         total: ops.filter(r => k.re.test(r.opName||'')).length,
       }));
 
@@ -1130,20 +1133,21 @@ const APP = {
       let keyRows = '', lastCat = '';
       keyCounts.forEach(k => {
         if(k.cat && k.cat !== lastCat) {
-          keyRows += `<tr><td class="stats-key-cat" colspan="3">${k.cat}</td></tr>`;
+          keyRows += `<tr><td class="stats-key-cat" colspan="4">${k.cat}</td></tr>`;
           lastCat = k.cat;
         }
         const mColor = k.month > 0 ? 'color:var(--accent)' : 'color:var(--muted)';
         keyRows += `<tr>
           <td>${k.label}</td>
           <td style="${mColor}">${k.month}</td>
+          <td style="color:var(--txt2)">${k.yr}</td>
           <td style="color:var(--txt2)">${k.total}</td>
         </tr>`;
       });
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">指標性手術</div>
         <table class="stats-key-table">
-          <thead><tr><th></th><th>本月</th><th>累積</th></tr></thead>
+          <thead><tr><th></th><th>本月</th><th>今年</th><th>所有</th></tr></thead>
           <tbody>${keyRows}</tbody>
         </table>
       </div>`);
