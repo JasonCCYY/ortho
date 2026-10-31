@@ -1046,14 +1046,17 @@ const APP = {
       const types = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
       const maxT = types[0]?.[1] || 1;
 
-      // 指標性手術
+      // 指標性手術（不含未來）
+      const today = SHEETS.nowDate();
       const year = this._statsMonth.substring(0, 4);
-      const yOps = ops.filter(r => r.date && r.date.startsWith(year));
+      const pastOps = ops.filter(r => r.date && r.date <= today);
+      const yOps = pastOps.filter(r => r.date.startsWith(year));
+      const mPastOps = mOps.filter(r => r.date <= today);
       const keyCounts = KEY_SX.map(k => ({
         ...k,
-        month: mOps.filter(r => k.re.test(r.opName||'')).length,
+        month: mPastOps.filter(r => k.re.test(r.opName||'')).length,
         yr:    yOps.filter(r => k.re.test(r.opName||'')).length,
-        total: ops.filter(r => k.re.test(r.opName||'')).length,
+        total: pastOps.filter(r => k.re.test(r.opName||'')).length,
       }));
 
       // 骨材 + 生長因子（從 implant 解析）
@@ -1168,20 +1171,20 @@ const APP = {
         parts.push(`<div class="stats-card"><div class="stats-card-title">生長因子（本月）</div>${gHtml}</div>`);
       }
 
-      // Card: 累積總量（114/8起）— 最後一張
+      // Card: 累積總量（114/8起，不含未來）— 最後一張
       const allTypeMap = {};
-      ops.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
+      pastOps.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
       const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
-      const allZh = ops.filter(r=>r.area==='中正').length, allYc = ops.filter(r=>r.area==='右昌').length, allOther = ops.length-allZh-allYc;
+      const allZh = pastOps.filter(r=>r.area==='中正').length, allYc = pastOps.filter(r=>r.area==='右昌').length, allOther = pastOps.length-allZh-allYc;
       const allAreaText = [allZh?`中正 ${allZh}`:'', allYc?`右昌 ${allYc}`:'', allOther?`其他 ${allOther}`:''].filter(Boolean).join(' ／ ');
-      const allTotal = ops.length || 1;
+      const allTotal = pastOps.length || 1;
       const allTypeHtml = allTypes.map(([t,n])=>`<div class="stats-type-row">
         <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
         <span class="stats-type-n" style="margin-left:auto">${n} <span style="color:var(--muted);font-size:.8em">${Math.round(n/allTotal*100)}%</span></span>
       </div>`).join('');
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">累積總量（114/8 起）</div>
-        <div class="stats-hero">${ops.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
+        <div class="stats-hero">${pastOps.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
         <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
         ${allTypeHtml}
       </div>`);
