@@ -188,10 +188,10 @@ const SHEETS = {
 
   async loadCodeRecords() {
     const load = async () => {
-      const rows = await this.read(this.T.codeRec, 'A2:H500');
+      const rows = await this.read(this.T.codeRec, 'A2:G500');
       return rows.filter(r=>r[0]).map((r,i)=>({
         _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-        area:r[4]||'', qty:r[5]||'', type:r[6]||'', todayNew:r[7]||''
+        area:r[4]||'', qty:r[5]||'', type:r[6]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
@@ -224,12 +224,12 @@ const SHEETS = {
   },
 
   async loadClinicRecords() {
-    // 門診: A=日期,B=產品,C=單價,D=數量,E=今日新增
+    // 門診: A=日期,B=產品,C=單價,D=數量
     const load = async () => {
-      const rows = await this.read(this.T.clinic, 'A2:E500');
+      const rows = await this.read(this.T.clinic, 'A2:D500');
       return rows.filter(r=>r[0]).map((r,i)=>({
         _row:i+2, date:r[0]||'', product:r[1]||'',
-        price:r[2]||'', qty:r[3]||'', todayNew:r[4]||''
+        price:r[2]||'', qty:r[3]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('clinic2', load);
@@ -438,19 +438,19 @@ const SHEETS = {
   },
 
   async addCode(d) {
-    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,d.type||'','']]);
+    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,d.type||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddCode(d) {
     const month = d.date ? String(d.date).substring(0, 7) : this.nowMonth();
-    const r = await this.append(this.T.codeRec, [[month,d.name,d.price,d.code,d.area,'1',d.type||'','TRUE']]);
+    const r = await this.append(this.T.codeRec, [[month,d.name,d.price,d.code,d.area,'1',d.type||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddClinic(name, price) {
     const cleanP = parseFloat(String(price).replace(/,/g,'')) || 0;
-    const r = await this.append(this.T.clinic, [[this.nowMonth(),name,cleanP,'1','TRUE']]);
+    const r = await this.append(this.T.clinic, [[this.nowMonth(),name,cleanP,'1']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
