@@ -306,6 +306,13 @@
     <div class="bone-grid" id="es-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
   <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="es-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('es-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
+  <div class="fg" id="es-codes-section">
+    <label class="fg-label">代碼</label>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div id="es-codes-chips" style="flex:1;display:flex;flex-wrap:wrap;gap:6px;min-height:32px"></div>
+      <button type="button" onclick="APP.openEditOpCodePicker()" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--accent);border-radius:8px;background:var(--elevated);color:var(--accent);font-size:.88rem;cursor:pointer;white-space:nowrap">新增代碼</button>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-sx')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
 </div></div>
 
@@ -446,6 +453,13 @@
     <div class="bone-grid" id="s-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
   <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="s-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('s-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
+  <div class="fg" id="s-codes-section">
+    <label class="fg-label">代碼</label>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div id="s-codes-chips" style="flex:1;display:flex;flex-wrap:wrap;gap:6px;min-height:32px"></div>
+      <button type="button" onclick="APP.openOpCodePicker()" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--accent);border-radius:8px;background:var(--elevated);color:var(--accent);font-size:.88rem;cursor:pointer;white-space:nowrap">新增代碼</button>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-op')">取消</button><button class="btn-save" onclick="APP.saveOp()">儲存</button></div>
 </div></div>
 
@@ -538,6 +552,16 @@
   <div id="search-results" style="max-height:65dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)">
     <div class="load-msg" style="color:var(--muted)">輸入關鍵字搜尋</div>
   </div>
+</div></div>
+
+<div class="modal-bd" id="modal-codepick" onclick="if(event.target===this)APP.closeModal('modal-codepick')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 12px">
+    <span class="modal-title" style="margin:0">選擇代碼</span>
+    <button onclick="APP.closeModal('modal-codepick')" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button>
+  </div>
+  <div id="codepick-list" style="max-height:60dvh;overflow-y:auto"></div>
 </div></div>
 
 <script src="/js/auth.js"></script>

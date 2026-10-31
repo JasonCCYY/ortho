@@ -19,7 +19,7 @@ const SHEETS = {
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
 
   // ── Cache helpers ──
-  _CACHE_VER: 'v3',  // 欄位結構異動時遞增，強制清除所有舊快取
+  _CACHE_VER: 'v4',  // 欄位結構異動時遞增，強制清除所有舊快取
   _STALE_TTL: 30 * 60 * 1000,  // 30 分鐘：超過視為 stale，返回快取並強制背景刷新
   initCache() {
     if (localStorage.getItem('ortho_cacheVer') !== this._CACHE_VER) {
@@ -113,19 +113,20 @@ const SHEETS = {
   // ── Loaders ──
   async loadOpRecords() {
     const load = async () => {
-      const hRow = await this.read(this.T.op, 'A1:J1');
+      const hRow = await this.read(this.T.op, 'A1:K1');
       const h = (hRow[0] || []).map(x => (x||'').trim());
       const ci = (names, fb) => { for (const n of names) { const i = h.indexOf(n); if (i>=0) return i; } return fb; };
       const iD=ci(['日期'],0), iA=ci(['院區'],1), iMR=ci(['病歷號'],2),
             iCL=ci(['診所ID'],3), iN=ci(['姓名'],4),
             iT=ci(['類型'],5), iON=ci(['名稱','術式'],6),
-            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9);
-      const rows = await this.read(this.T.op, 'A2:J500');
+            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9),
+            iK=ci(['代碼'],10);
+      const rows = await this.read(this.T.op, 'A2:K500');
       return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
         _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
         clinicId:r[iCL]||'', name:r[iN]||'',
         type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
-        implant:r[iI]||'', note:r[iNt]||''
+        implant:r[iI]||'', note:r[iNt]||'', codes:r[iK]||''
       }));
     };
     return this.cached('op', load);
@@ -133,19 +134,19 @@ const SHEETS = {
 
   async loadTrackRecords() {
     const load = async () => {
-      const hRow = await this.read(this.T.track, 'A1:J1');
+      const hRow = await this.read(this.T.track, 'A1:K1');
       const h = (hRow[0]||[]).map(x=>(x||'').trim());
       const ci = (names, fb) => { for(const n of names){const i=h.indexOf(n);if(i>=0)return i;} return fb; };
       const iD=ci(['日期'],0),iA=ci(['院區'],1),iMR=ci(['病歷號'],2),
             iClinic=ci(['診所ID'],3),iN=ci(['姓名'],4),iT=ci(['類型'],5),
             iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),
-            iNt=ci(['備註'],9);
-      const rows = await this.read(this.T.track, 'A2:J500');
+            iNt=ci(['備註'],9),iK=ci(['代碼'],10);
+      const rows = await this.read(this.T.track, 'A2:K500');
       return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
         _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
         clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
         opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
-        note:r[iNt]||''
+        note:r[iNt]||'', codes:r[iK]||''
       }));
     };
     return this.cached('track', load);
@@ -188,10 +189,10 @@ const SHEETS = {
 
   async loadCodeRecords() {
     const load = async () => {
-      const rows = await this.read(this.T.codeRec, 'A2:G500');
+      const rows = await this.read(this.T.codeRec, 'A2:H500');
       return rows.filter(r=>r[0]).map((r,i)=>({
         _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-        area:r[4]||'', qty:r[5]||'', type:r[6]||''
+        area:r[4]||'', qty:r[5]||'', type:r[6]||'', patient:r[7]||''
       })).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
@@ -416,13 +417,34 @@ const SHEETS = {
   },
 
   async addOp(d) {
-    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_op'); return r;
   },
 
   async addTrack(d) {
-    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_track'); return r;
+  },
+
+  async updateOpCodes(row, codes) {
+    await this.put(this.T.op+'!K'+row, [[codes]]);
+    localStorage.removeItem('ortho_op');
+  },
+
+  async deleteCodesByPatient(month, name) {
+    if (!month || !name) return 0;
+    const recs = await this.read(this.T.codeRec, 'A2:H500');
+    const toDelete = [];
+    for (let i = 0; i < recs.length; i++) {
+      const row = recs[i];
+      if (!row[0]) continue;
+      const recMonth = String(row[0]).substring(0,7);
+      const recPatient = row[7] || '';
+      if (recMonth === month && recPatient === name) toDelete.push(i+2);
+    }
+    for (const r of [...toDelete].reverse()) await this.clearRow(this.T.codeRec, r, 'A', 'H');
+    if (toDelete.length) localStorage.removeItem('ortho_codeRec2');
+    return toDelete.length;
   },
 
   async addMat(d) {

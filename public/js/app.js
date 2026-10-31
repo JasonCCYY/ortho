@@ -581,6 +581,7 @@ const APP = {
         // 操作按鈕
         html += `<div class="scan-actions">
           <button class="scan-btn-save" onclick="APP.scanConfirm(${idx})">✓ 新增</button>
+          <button class="scan-btn-edit" onclick="APP.scanAddCode(${idx})">＋代碼</button>
           <button class="scan-btn-edit" onclick="APP.scanEdit(${idx})">✏ 編輯</button>
           <button class="scan-btn-skip" onclick="APP.scanSkip(${idx})">略過</button>
         </div>
@@ -676,6 +677,7 @@ const APP = {
       if(await this._checkDuplicate(p.name, p.date) && !confirm(`${p.date} 已有「${p.name}」的手術紀錄，確定仍要新增？`)) return;
 
       // 新增手術紀錄
+      const codeStr = (p.matchedCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp({
         date: p.date,
         area: '中正',
@@ -687,6 +689,7 @@ const APP = {
         location: p.location || '',
         implant,
         note: p.note,
+        codes: codeStr,
       });
       this._markAddedToday('sx', p.date+'|'+p.name);
 
@@ -722,6 +725,112 @@ const APP = {
     } catch(e) {
       this.toast('❌ ' + e.message);
     }
+  },
+
+  async scanAddCode(idx) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === '中正');
+    this._showCodePicker(filtered, (c, half) => {
+      if(!p.matchedCodes) p.matchedCodes = [];
+      const key = c.code+(half?'*':'');
+      if(p.matchedCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        p.matchedCodes.push({name:c.name+'*', code:key, price:hp, area:c.area, type:c.type||'', found:true});
+        this.toast(`已加入 ${c.name}*（$${hp.toLocaleString()}）`);
+      } else {
+        p.matchedCodes.push({name:c.name, code:c.code, price:c.price, area:c.area, type:c.type||'', found:true});
+        this.toast(`已加入 ${c.name}`);
+      }
+      const codeEl = document.querySelector(`#scan-card-${idx} .scan-codes`);
+      if(codeEl) {
+        codeEl.innerHTML = p.matchedCodes.map(mc=>
+          `<span class="scan-code-chip">${mc.name} <span style="color:var(--muted)">${mc.code}</span> $${Number(mc.price||0).toLocaleString()}</span>`
+        ).join('');
+      }
+    });
+  },
+
+  _showCodePicker(codes, onSelect) {
+    const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+    const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
+    const sorted = [...codes].sort((a,b)=>{
+      const tr=typeRank(a.type)-typeRank(b.type);
+      return tr!==0?tr:parseInt(a.code||0)-parseInt(b.code||0);
+    });
+    let html = '';
+    sorted.forEach(c => {
+      const cleanP = parseFloat(String(c.price||0).replace(/,/g,''))||0;
+      const t = c.type||'';
+      const si = APP._storeRow(c);
+      html += `<div class="list-row" style="gap:0;position:relative">
+        <span class="col-code" style="font-size:.85rem;color:var(--muted)">${c.code}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${c.name}</span>
+        <div style="display:flex;gap:16px;flex-shrink:0" onclick="event.stopPropagation()">
+          <button class="add-center-btn" onclick="APP._codepickCb(${si},false)">＋</button>
+          <button class="add-center-btn add-half-btn" onclick="APP._codepickCb(${si},true)">½</button>
+        </div>
+        ${t?`<span class="badge badge-${t}" style="font-size:.65rem;padding:1px 5px;flex-shrink:0;margin-left:4px">${t}</span>`:''}
+        <span class="col-price" style="min-width:60px;text-align:right">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+      </div>`;
+    });
+    this._codepickCb = (si, half) => {
+      const c = APP._getRow(si);
+      if(c) { onSelect(c, half); APP.closeModal('modal-codepick'); }
+    };
+    document.getElementById('codepick-list').innerHTML = html;
+    this.openModal('modal-codepick');
+  },
+
+  async openOpCodePicker() {
+    const area = document.getElementById('s-area-val')?.value || '中正';
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === area);
+    this._showCodePicker(filtered, (c, half) => {
+      if(!this._pendingOpCodes) this._pendingOpCodes = [];
+      const key = c.code+(half?'*':'');
+      if(this._pendingOpCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        this._pendingOpCodes.push({name:c.name+'*', code:key, price:hp, type:c.type||''});
+      } else {
+        this._pendingOpCodes.push({name:c.name, code:c.code, price:c.price, type:c.type||''});
+      }
+      this._renderPendingCodes('s-codes-chips', this._pendingOpCodes);
+    });
+  },
+
+  async openEditOpCodePicker() {
+    const area = document.getElementById('es-area-val')?.value || '中正';
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === area);
+    this._showCodePicker(filtered, (c, half) => {
+      if(!this._editOpCodes) this._editOpCodes = [];
+      const key = c.code+(half?'*':'');
+      if(this._editOpCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        this._editOpCodes.push({name:c.name+'*', code:key, price:hp, type:c.type||''});
+      } else {
+        this._editOpCodes.push({name:c.name, code:c.code, price:c.price, type:c.type||''});
+      }
+      this._renderPendingCodes('es-codes-chips', this._editOpCodes);
+    });
+  },
+
+  _renderPendingCodes(elId, codes) {
+    const el = document.getElementById(elId);
+    if(!el) return;
+    el.innerHTML = (codes||[]).map((c,i)=>
+      `<span class="chip on" style="font-size:.8rem;padding:2px 8px">${c.name} <span onclick="APP._removePendingCode('${elId}',${i})" style="margin-left:4px;cursor:pointer;opacity:.7">✕</span></span>`
+    ).join('');
+  },
+
+  _removePendingCode(elId, idx) {
+    if(elId==='s-codes-chips') { (this._pendingOpCodes||[]).splice(idx,1); this._renderPendingCodes(elId, this._pendingOpCodes); }
+    else if(elId==='es-codes-chips') { (this._editOpCodes||[]).splice(idx,1); this._renderPendingCodes(elId, this._editOpCodes); }
   },
 
   scanEdit(idx) {
@@ -1360,13 +1469,9 @@ const APP = {
           const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const t = r.type || '';
           const _si=APP._storeRow(r);
-          html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
+          html += `<div class="list-row" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
-            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:26px;flex-shrink:0" onclick="event.stopPropagation()">
-              <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="新增到代碼紀錄">＋</button>
-              <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="第二術式（減半）">½</button>
-            </div>
             ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
           </div>`;
@@ -1386,44 +1491,51 @@ const APP = {
       if(!recs.length) { el.innerHTML = this.empty(); return; }
       const typeMap = {};
       opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
-      const resolveType = r => r.type || typeMap[r.code] || typeMap[(r.code||'').replace('*','')] || '';
-      const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
-      const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
       let html = '';
-      this.groupByMonth(recs).forEach(([m,rows]) => {
+      let detailCtr = 0;
+      this.groupByMonth(recs).forEach(([m, rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
-        const areaOrd=['中正','右昌'];
-        const sorted=[...rows].sort((a,b)=>{
-          const aN=this._isAddedToday('code', a.date+'|'+a.name+'|'+a.code+'|'+a.area);
-          const bN=this._isAddedToday('code', b.date+'|'+b.name+'|'+b.code+'|'+b.area);
-          if(aN&&!bN) return -1; if(!aN&&bN) return 1;
-          const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
-          if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
-          const tr=typeRankCR(resolveType(a))-typeRankCR(resolveType(b));
-          if(tr!==0) return tr;
-          return parseInt(a.code||0)-parseInt(b.code||0);
+        // Sub-group by patient
+        const groups = {};
+        rows.forEach(r => {
+          const key = r.patient || '';
+          if (!groups[key]) groups[key] = { patient: key, rows: [] };
+          groups[key].rows.push(r);
         });
-        sorted.forEach(r => {
-          const isNew=this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
-          const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          const t=resolveType(r);
-          const _si=APP._storeRow(r);
-          const tagInner = r.area==='右昌'
-            ? `<span class="col-area" style="width:auto">右昌</span>`
-            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px">${t}</span>`:'');
-          html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
-            ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
-            <span class="col-product" title="${r.name}">${r.name}</span>
-            <span class="col-code">${r.code}</span>
-            <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            <span class="col-qty">${r.qty}</span>
-            <span class="col-type">${tagInner}</span>
+        Object.values(groups).forEach(g => {
+          const hasNew = g.rows.some(r => this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          const gTotal = g.rows.reduce((s,r)=>s+(parseFloat(String(r.price||0).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
+          const detailId = 'cr-det-' + (detailCtr++);
+          html += `<div class="list-row" onclick="APP.toggleCrDetail('${detailId}')">
+            <span class="${hasNew?'new-dot':'dot-ph'}"></span>
+            <span style="flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.patient||'—'}</span>
+            <span class="col-qty">${g.rows.length}</span>
+            <span class="col-price">${gTotal?'$'+gTotal.toLocaleString():''}</span>
           </div>`;
+          html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
+          g.rows.forEach(r => {
+            const _si = APP._storeRow(r);
+            const isNew = this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
+            const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
+            html += `<div class="mat-detail-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})" style="cursor:pointer">
+              <span class="${isNew?'new-dot':'dot-ph'}"></span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date) ? r.date.slice(5) : r.date}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem">${r.name}</span>
+              <span class="col-code" style="font-size:.8rem">${r.code}</span>
+              <span class="col-price" style="font-size:.8rem">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+            </div>`;
+          });
+          html += `</div>`;
         });
       });
       el.innerHTML = html;
     } catch(e) { el.innerHTML = this.err(e); }
+  },
+
+  toggleCrDetail(detailId) {
+    const el = document.getElementById(detailId);
+    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
   },
 
   // ── Estimate — transposed: rows=labels, cols=months ──
@@ -1621,7 +1733,7 @@ const APP = {
 
     let content = '';
     if(type==='sx'||type==='track') {
-      content = field('日期',r.date)+field('院區',r.area)+field('病歷號',r.mrn)+(type==='track'?field('診所ID',r.clinicId):'')+field('姓名',r.name)+field('類型',r.type)+field('手術名稱',r.opName)+field('部位',r.location)+field('骨材',r.implant)+field('備註',r.note);
+      content = field('日期',r.date)+field('院區',r.area)+field('病歷號',r.mrn)+(type==='track'?field('診所ID',r.clinicId):'')+field('姓名',r.name)+field('類型',r.type)+field('手術名稱',r.opName)+field('部位',r.location)+field('骨材',r.implant)+(type==='sx'?field('代碼',r.codes):'')+field('備註',r.note);
     } else if(type==='mat') {
       const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
       const total=cleanP*(parseInt(r.qty)||1);
@@ -1684,6 +1796,16 @@ const APP = {
         if(!names.includes(r.opName)&&r.opName){sel.innerHTML+=`<option value="${r.opName}" selected>${r.opName}</option>`;}
         // bone chips — init directly
         APP.initEsBoneChips(typeVal, r.implant||'');
+        // Load existing codes for editing
+        SHEETS.loadOpCodes().then(allCodes => {
+          this._editOpCodes = (r.codes||'').split(',').filter(Boolean).map(code => {
+            const base = code.replace('*','');
+            const found = allCodes.find(c=>c.code===base);
+            const half = code.endsWith('*');
+            return { code, name:(found?.name||base)+(half?'*':''), price:half?Math.round(parseFloat(String(found?.price||0).replace(/,/g,''))/2):(found?.price||''), type:found?.type||'' };
+          });
+          this._renderPendingCodes('es-codes-chips', this._editOpCodes);
+        });
       } else {
         // Populate et-opname select
         const etNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
@@ -1754,6 +1876,18 @@ const APP = {
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
         }
+        // Sync codes: update K col + OP代碼記錄
+        const editCodeStr = (this._editOpCodes||[]).map(c=>c.code).join(',');
+        await SHEETS.updateOpCodes(r._row, editCodeStr);
+        try {
+          await SHEETS.deleteCodesByPatient(r.date.substring(0,7), newName);
+          const editArea = document.getElementById('es-area-val').value || r.area || '中正';
+          for(const c of (this._editOpCodes||[])) {
+            await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||''});
+            this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+editArea);
+          }
+        } catch(e2) { this.toast('⚠️ 代碼同步失敗'); }
+        this._editOpCodes = [];
         this.closeModal('modal-edit-sx'); this.loadSurgery();
         if (oldImplant !== newImplant) {
           try {
@@ -1839,7 +1973,7 @@ const APP = {
     if(!r) return;
     if(!confirm('將此手術紀錄移至追蹤？')) return;
     try {
-      await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
       await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
@@ -1850,6 +1984,10 @@ const APP = {
           const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
           if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
         } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
+        try {
+          const deletedCodes = await SHEETS.deleteCodesByPatient(r.date.substring(0,7), r.name);
+          if (deletedCodes > 0) this.toast('✅ 代碼紀錄已同步刪除');
+        } catch(e2) { this.toast('⚠️ 代碼記錄同步失敗'); }
       }
     } catch(e) { this.toast('❌ '+e.message); }
   },
@@ -1857,10 +1995,45 @@ const APP = {
   async moveToSx() {
     const r = this._detailData;
     if(!r) return;
-    if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
+    const hasCodes = r.codes && r.codes.trim();
+    const hasImplant = r.implant && r.implant.trim();
+    if(!hasCodes && !hasImplant) {
+      if(!confirm('此追蹤紀錄無代碼及骨材資料，確定仍要移回手術紀錄？')) return;
+    } else {
+      if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
+    }
     try {
-      await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
+      this._markAddedToday('sx', r.date+'|'+r.name);
       await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
+      // Re-add codes to OP代碼記錄
+      if(hasCodes) {
+        const allCodes = await SHEETS.loadOpCodes();
+        const month = r.date.substring(0,7);
+        for(const code of r.codes.split(',').filter(Boolean)) {
+          const base = code.replace('*','');
+          const half = code.endsWith('*');
+          const master = allCodes.find(c=>c.code===base);
+          if(!master) continue;
+          const price = half ? Math.round(parseFloat(String(master.price||0).replace(/,/g,''))/2) : (parseFloat(String(master.price||0).replace(/,/g,''))||0);
+          const name = master.name+(half?'*':'');
+          const codeVal = master.code+(half?'*':'');
+          await SHEETS.quickAddCode({name, code:codeVal, price, area:r.area||'中正', type:master.type||'', date:r.date});
+          this._markAddedToday('code', month+'|'+name+'|'+codeVal+'|'+(r.area||'中正'));
+        }
+      }
+      // Re-add bone materials to 醫材記錄
+      if(hasImplant) {
+        const matProds = await SHEETS.loadMatProducts();
+        const boneSels = this._parseImplantToSelections(r.implant, SHEETS.boneCats||[]);
+        for(const s of boneSels) {
+          if(!s.product) continue;
+          const prod = matProds.find(p=>p.brand===s.brand&&p.product===s.product)||matProds.find(p=>p.product===s.product);
+          const matBrand = s.brand||prod?.brand||s.product;
+          await SHEETS.addMatFromSurgery({date:r.date, brand:matBrand, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:r.name});
+          this._markAddedToday('mat', r.date+'|'+matBrand+'|'+s.product+'|'+r.name);
+        }
+      }
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移回手術紀錄');
@@ -1885,6 +2058,7 @@ const APP = {
     const scanIdx = this._scanEditIdx ?? null;
     this._scanEditIdx = null;
     try{
+      d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
       this._markAddedToday('sx', d.date+'|'+d.name);
       if(scanIdx !== null) {
@@ -1894,6 +2068,12 @@ const APP = {
           this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|中正');
         }
       }
+      // Write pending codes from picker
+      for(const c of (this._pendingOpCodes||[])) {
+        await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'' });
+        this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+d.area);
+      }
+      this._pendingOpCodes = [];
       // Sync bone chips → 骨材記錄
       if (d.implant) {
         const matProds = await SHEETS.loadMatProducts();
@@ -1920,6 +2100,9 @@ const APP = {
       document.getElementById('s-location').value='';
       document.getElementById('s-note').value='';
       document.getElementById('s-bone-val').value='';
+      this._pendingOpCodes = [];
+      const sCodesChips = document.getElementById('s-codes-chips');
+      if(sCodesChips) sCodesChips.innerHTML='';
       document.getElementById('s-opname').innerHTML='<option value="">請先選擇類型</option>';
       document.getElementById('s-type-val').value='Joint';
       document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
