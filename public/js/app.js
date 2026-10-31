@@ -1528,8 +1528,8 @@ const APP = {
           const subLine = totalQty>1&&cleanP?`<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>`:'';
           html += `<div class="list-row" onclick="APP.toggleCrDetail('${detailId}')">
             <span class="${hasNew?'new-dot':'dot-ph'}"></span>
+            <span class="col-product" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${g.name}${subLine}</span>
             <span class="col-code" style="font-size:.83rem;color:var(--muted);flex-shrink:0">${g.code}</span>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${g.name}${subLine}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             <span class="col-qty">${totalQty}</span>
             <span class="col-type">${tagInner}</span>
