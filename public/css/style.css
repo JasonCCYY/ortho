@@ -88,6 +88,8 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .sx-date{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;font-size:.85rem;color:var(--txt2);letter-spacing:-.01em}
 .sx-area{font-size:.85rem;color:var(--muted)}
 .sx-name{font-weight:700;min-width:64px;position:sticky;left:0;z-index:4;background:var(--surface);box-shadow:2px 0 4px rgba(0,0,0,.06)}
+.name-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.name-link:active{color:var(--accent)}
 /* sx-name in header row also sticky */
 .sx-table thead .th-name{position:sticky;left:0;z-index:11;background:var(--bg)}
 /* month row needs to cover the sticky column */

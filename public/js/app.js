@@ -653,6 +653,8 @@ const APP = {
         }).join(' , ');
       }
 
+      if(await this._checkDuplicate(p.name, p.date) && !confirm(`${p.date} 已有「${p.name}」的手術紀錄，確定仍要新增？`)) return;
+
       // 新增手術紀錄
       await SHEETS.addOp({
         date: p.date,
@@ -917,7 +919,7 @@ const APP = {
         const prefix = missingData ? '<span style="color:var(--red);font-weight:700">*</span>' : (isYC ? '<span style="color:var(--muted)">．</span>' : '');
         rows += `<tr class="sx-data-row" onclick="APP.openDetailS('sx',${_si})">
           <td class="sx-date">${day}</td>
-          <td class="sx-name">${prefix}${r.name}</td>
+          <td class="sx-name">${prefix}<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span></td>
           <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
           <td class="sx-opname">${r.opName}</td>
           <td class="sx-loc" title="${r.location}">${r.location}</td>
@@ -964,7 +966,7 @@ const APP = {
           const _si = APP._storeRow(r);
           rows += `<tr class="sx-data-row" onclick="APP.openDetailS('track',${_si})">
             <td class="sx-date" style="font-size:.82rem">${r.date}</td>
-            <td class="sx-name">${r.name}</td>
+            <td class="sx-name"><span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span></td>
             <td><span class="badge badge-${r.type}">${r.type||"-"}</span></td>
             <td class="sx-opname">${r.opName}</td>
             <td class="sx-loc" title="${r.location}">${r.location}</td>
@@ -1334,6 +1336,43 @@ const APP = {
     this._renderDetail(type, r);
   },
 
+  // ── Patient History ──
+  async openPatientHistory(name) {
+    document.getElementById('ph-title').textContent = name;
+    document.getElementById('ph-body').innerHTML = this.loading();
+    this.openModal('modal-patient-history');
+    try {
+      const [ops, tracks] = await Promise.all([SHEETS.loadOpRecords(), SHEETS.loadTrackRecords()]);
+      const all = [
+        ...ops.filter(r => r.name === name).map(r => ({...r, _type:'sx'})),
+        ...tracks.filter(r => r.name === name).map(r => ({...r, _type:'track'}))
+      ].sort((a, b) => this.dateNum(b.date) - this.dateNum(a.date));
+      if (!all.length) {
+        document.getElementById('ph-body').innerHTML = '<div style="color:var(--muted);padding:24px 0;text-align:center">無紀錄</div>';
+        return;
+      }
+      let html = '';
+      all.forEach(r => {
+        const _si = APP._storeRow(r);
+        const trackBadge = r._type === 'track' ? '<span style="font-size:.7rem;color:var(--muted);flex-shrink:0">追蹤</span>' : '';
+        html += `<div class="list-row" onclick="APP.closeModal('modal-patient-history');APP.openDetailS('${r._type}',${_si})">
+          <span style="min-width:48px;font-size:.82rem;color:var(--muted);flex-shrink:0">${r.date.substring(5)||r.date}</span>
+          <span class="badge badge-${r.type}" style="flex-shrink:0">${r.type||'-'}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem">${r.opName||''}</span>
+          <span style="font-size:.78rem;color:var(--accent);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0">${r.implant||''}</span>
+          ${trackBadge}
+        </div>`;
+      });
+      document.getElementById('ph-body').innerHTML = html;
+    } catch(e) { document.getElementById('ph-body').innerHTML = this.err(e); }
+  },
+
+  // ── Duplicate check ──
+  async _checkDuplicate(name, date) {
+    const ops = await SHEETS.loadOpRecords();
+    return ops.some(r => r.name === name && r.date === date);
+  },
+
   // ── Detail Modal — hide _row / internal IDs ──
   openDetail(type, encoded) {
     const r = JSON.parse(decodeURIComponent(encoded));
@@ -1607,6 +1646,7 @@ const APP = {
     if(this._savingOp) return;
     const d={date:document.getElementById('s-date').value.replace(/-/g,'/'),area:document.getElementById('s-area-val').value,mrn:document.getElementById('s-mrn').value.trim(),clinicId:document.getElementById('s-clinicid')?.value.trim()||'',name:document.getElementById('s-name').value.trim(),type:document.getElementById('s-type-val').value,opName:document.getElementById('s-opname').value,location:document.getElementById('s-location').value.trim(),implant:document.getElementById('s-bone-val').value,note:document.getElementById('s-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
+    if(await this._checkDuplicate(d.name, d.date) && !confirm(`${d.date} 已有「${d.name}」的手術紀錄，確定仍要新增？`)) return;
     this._savingOp = true;
     const btn=this._lockSaveBtn('modal-op');
     const scanIdx = this._scanEditIdx ?? null;
