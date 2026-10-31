@@ -1475,7 +1475,7 @@ const APP = {
           html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
-            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:4px">
+            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:18px">
               <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},false)" title="新增">＋</button>
               <button class="add-center-btn add-half-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},true)" title="半價">½</button>
             </div>
