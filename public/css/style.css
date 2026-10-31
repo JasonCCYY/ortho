@@ -137,6 +137,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
 .col-code   {width:52px;font-family:'JetBrains Mono',monospace;font-size:.82rem;color:var(--muted);flex-shrink:0}
 .col-area   {width:38px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
 .col-hosp   {width:36px;font-size:.82rem;color:var(--muted);text-align:right;flex-shrink:0}
+.col-type   {width:68px;text-align:right;flex-shrink:0}
 .col-date   {width:44px;font-size:.83rem;color:var(--txt2);flex-shrink:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',system-ui,sans-serif;letter-spacing:-.01em}
 
 /* New-dot / placeholder */
@@ -319,6 +320,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
   .col-qty   { width: 44px; }
   .col-code  { width: 60px; }
   .col-area  { width: 48px; }
+  .col-type  { width: 76px; }
 }
 
 /* ── Desktop (1025px+) ── */
@@ -382,6 +384,7 @@ html,body{height:100%;font-family:'Noto Sans TC',sans-serif;background:var(--bg)
   .col-code  { width: 60px; }
   .col-area  { width: 46px; }
   .col-hosp  { width: 44px; }
+  .col-type  { width: 76px; }
 
   /* Wider table columns for surgery list */
   .sx-table th, .sx-table td { padding: 11px 14px; font-size: 1rem; }
