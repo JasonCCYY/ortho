@@ -1102,7 +1102,7 @@ const APP = {
         months12.push(`${td.getFullYear()}/${String(td.getMonth()+1).padStart(2,'0')}`);
       }
       const monthlyCounts = months12.map(m => ({
-        label: m.substring(5),
+        label: m.substring(0,4) !== String(sy) ? m.substring(2) : m.substring(5),
         count: ops.filter(r => r.date && r.date.startsWith(m)).length,
         isCur: m === this._statsMonth,
       }));
@@ -1147,7 +1147,7 @@ const APP = {
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">指標性手術</div>
         <table class="stats-key-table">
-          <thead><tr><th></th><th>本月</th><th>今年</th><th>所有</th></tr></thead>
+          <thead><tr><th></th><th>本月</th><th>${year}</th><th>所有</th></tr></thead>
           <tbody>${keyRows}</tbody>
         </table>
       </div>`);
