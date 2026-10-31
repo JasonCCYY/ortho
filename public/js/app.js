@@ -1029,7 +1029,9 @@ const APP = {
 
     try {
       if(!SHEETS.boneCats) await SHEETS.loadCategories();
-      const ops = await SHEETS.loadOpRecords();
+      const allOps = await SHEETS.loadOpRecords();
+      const STATS_START = '2025/08';
+      const ops = allOps.filter(r => r.date && r.date >= STATS_START);
       const month = this._statsMonth;
       const mOps = ops.filter(r => r.date && r.date.startsWith(month));
 
