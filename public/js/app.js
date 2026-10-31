@@ -1472,13 +1472,15 @@ const APP = {
           const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const t = r.type || '';
           const _si=APP._storeRow(r);
-          html += `<div class="list-row" onclick="APP.openDetailS('opcode',${_si})">
+          html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
+            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:4px">
+              <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},false)" title="新增">＋</button>
+              <button class="add-center-btn add-half-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},true)" title="半價">½</button>
+            </div>
             ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},false)" title="新增" style="flex-shrink:0">＋</button>
-            <button class="add-center-btn add-half-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},true)" title="半價" style="flex-shrink:0">½</button>
           </div>`;
         });
       });
