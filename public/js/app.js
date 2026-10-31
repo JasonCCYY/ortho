@@ -902,6 +902,8 @@ const APP = {
         return b._row - a._row;
       });
       if(!sorted.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
+      const nameCount = {};
+      sorted.forEach(r => { if(r.name) nameCount[r.name] = (nameCount[r.name]||0) + 1; });
       let rows = '', lastM = '';
       sorted.forEach(r => {
         const m = this.getMonth(r.date);
@@ -917,9 +919,12 @@ const APP = {
         const isYC = r.area==='右昌';
         const missingData = !r.name || !r.mrn;
         const prefix = missingData ? '<span style="color:var(--red);font-weight:700">*</span>' : (isYC ? '<span style="color:var(--muted)">．</span>' : '');
+        const nameHtml = (nameCount[r.name]||0) > 1
+          ? `<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span>`
+          : (r.name||'');
         rows += `<tr class="sx-data-row" onclick="APP.openDetailS('sx',${_si})">
           <td class="sx-date">${day}</td>
-          <td class="sx-name">${prefix}<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span></td>
+          <td class="sx-name">${prefix}${nameHtml}</td>
           <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
           <td class="sx-opname">${r.opName}</td>
           <td class="sx-loc" title="${r.location}">${r.location}</td>
@@ -959,14 +964,19 @@ const APP = {
         return (ai<0?99:ai) - (bi<0?99:bi);
       });
 
+      const trackNameCount = {};
+      recs.forEach(r => { if(r.name) trackNameCount[r.name] = (trackNameCount[r.name]||0) + 1; });
       let rows = "";
       sortedAreas.forEach(area => {
         rows += `<tr class="sx-month-row"><td colspan="8">${area} <span class="month-badge">${groups[area].length}</span></td></tr>`;
         groups[area].forEach(r => {
           const _si = APP._storeRow(r);
+          const trackNameHtml = (trackNameCount[r.name]||0) > 1
+            ? `<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span>`
+            : (r.name||'');
           rows += `<tr class="sx-data-row" onclick="APP.openDetailS('track',${_si})">
             <td class="sx-date" style="font-size:.82rem">${r.date}</td>
-            <td class="sx-name"><span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span></td>
+            <td class="sx-name">${trackNameHtml}</td>
             <td><span class="badge badge-${r.type}">${r.type||"-"}</span></td>
             <td class="sx-opname">${r.opName}</td>
             <td class="sx-loc" title="${r.location}">${r.location}</td>
