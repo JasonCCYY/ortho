@@ -1491,39 +1491,55 @@ const APP = {
       if(!recs.length) { el.innerHTML = this.empty(); return; }
       const typeMap = {};
       opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
+      const resolveType = r => r.type || typeMap[r.code] || typeMap[(r.code||'').replace('*','')] || '';
+      const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
       let html = '';
       let detailCtr = 0;
       this.groupByMonth(recs).forEach(([m, rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
-        // Sub-group by patient
+        // 父項：術式+代碼，子項：病患
         const groups = {};
         rows.forEach(r => {
-          const key = r.patient || '';
-          if (!groups[key]) groups[key] = { patient: key, rows: [] };
+          const key = (r.code||'')+'|'+(r.name||'');
+          if(!groups[key]) groups[key] = { code:r.code, name:r.name, price:r.price, area:r.area, type:resolveType(r), rows:[] };
           groups[key].rows.push(r);
         });
-        Object.values(groups).forEach(g => {
-          const hasNew = g.rows.some(r => this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
-          const gTotal = g.rows.reduce((s,r)=>s+(parseFloat(String(r.price||0).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
-          const detailId = 'cr-det-' + (detailCtr++);
+        const sorted = Object.values(groups).sort((a,b) => {
+          const aN = a.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          const bN = b.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          if(aN&&!bN) return -1; if(!aN&&bN) return 1;
+          return typeRank(a.type)-typeRank(b.type)||parseInt(a.code||0)-parseInt(b.code||0);
+        });
+        sorted.forEach(g => {
+          const hasNew = g.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
+          const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
+          const totalVal = cleanP*totalQty;
+          const t = g.type;
+          const detailId = 'cr-det-'+(detailCtr++);
+          const tagInner = g.area==='右昌'
+            ? `<span class="col-area" style="width:auto;font-size:.75rem">右昌</span>`
+            : (t?`<span class="badge badge-${t}" style="font-size:.65rem;padding:1px 5px">${t}</span>`:'');
+          const subLine = totalQty>1&&cleanP?`<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>`:'';
           html += `<div class="list-row" onclick="APP.toggleCrDetail('${detailId}')">
             <span class="${hasNew?'new-dot':'dot-ph'}"></span>
-            <span style="flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.patient||'—'}</span>
-            <span class="col-qty">${g.rows.length}</span>
-            <span class="col-price">${gTotal?'$'+gTotal.toLocaleString():''}</span>
+            <span class="col-code" style="font-size:.83rem;color:var(--muted);flex-shrink:0">${g.code}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${g.name}${subLine}</span>
+            <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+            <span class="col-qty">${totalQty}</span>
+            <span class="col-type">${tagInner}</span>
           </div>`;
           html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
           g.rows.forEach(r => {
             const _si = APP._storeRow(r);
             const isNew = this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
-            const cleanP = parseFloat(String(r.price||0).replace(/,/g,''))||0;
             html += `<div class="mat-detail-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})" style="cursor:pointer">
               <span class="${isNew?'new-dot':'dot-ph'}"></span>
-              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date) ? r.date.slice(5) : r.date}</span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem">${r.name}</span>
-              <span class="col-code" style="font-size:.8rem">${r.code}</span>
-              <span class="col-price" style="font-size:.8rem">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date)?r.date.slice(5):r.date}</span>
+              <span class="detail-patient" style="flex:1">${r.patient||'—'}</span>
+              <span class="detail-qty"> *${r.qty||1}</span>
             </div>`;
           });
           html += `</div>`;
