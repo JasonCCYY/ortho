@@ -1082,23 +1082,6 @@ const APP = {
         <div class="stats-sub">${areaText||'—'}</div>
       </div>`);
 
-      // Card: 累積總量（114/8起）
-      const allTypeMap = {};
-      ops.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
-      const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
-      const allZh = ops.filter(r=>r.area==='中正').length, allYc = ops.filter(r=>r.area==='右昌').length, allOther = ops.length-allZh-allYc;
-      const allAreaText = [allZh?`中正 ${allZh}`:'', allYc?`右昌 ${allYc}`:'', allOther?`其他 ${allOther}`:''].filter(Boolean).join(' ／ ');
-      const allTypeHtml = allTypes.map(([t,n])=>`<div class="stats-type-row">
-        <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
-        <span class="stats-type-n" style="margin-left:auto">${n}</span>
-      </div>`).join('');
-      parts.push(`<div class="stats-card">
-        <div class="stats-card-title">累積總量（114/8 起）</div>
-        <div class="stats-hero">${ops.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
-        <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
-        ${allTypeHtml}
-      </div>`);
-
       // Card 2: 類型分布
       if(types.length) {
         let typeHtml = types.map(([type, cnt]) => {
@@ -1182,6 +1165,23 @@ const APP = {
         const gHtml = gfs.map(([n,q])=>`<div class="stats-item-row"><span class="stats-item-name">${n}</span><span class="stats-item-qty">${q}</span></div>`).join('');
         parts.push(`<div class="stats-card"><div class="stats-card-title">生長因子（本月）</div>${gHtml}</div>`);
       }
+
+      // Card: 累積總量（114/8起）— 最後一張
+      const allTypeMap = {};
+      ops.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
+      const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
+      const allZh = ops.filter(r=>r.area==='中正').length, allYc = ops.filter(r=>r.area==='右昌').length, allOther = ops.length-allZh-allYc;
+      const allAreaText = [allZh?`中正 ${allZh}`:'', allYc?`右昌 ${allYc}`:'', allOther?`其他 ${allOther}`:''].filter(Boolean).join(' ／ ');
+      const allTypeHtml = allTypes.map(([t,n])=>`<div class="stats-type-row">
+        <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
+        <span class="stats-type-n" style="margin-left:auto">${n}</span>
+      </div>`).join('');
+      parts.push(`<div class="stats-card">
+        <div class="stats-card-title">累積總量（114/8 起）</div>
+        <div class="stats-hero">${ops.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
+        <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
+        ${allTypeHtml}
+      </div>`);
 
       body.innerHTML = parts.join('') || `<div style="color:var(--muted);padding:32px 0;text-align:center">本月無手術紀錄</div>`;
     } catch(e) { body.innerHTML = this.err(e); }
