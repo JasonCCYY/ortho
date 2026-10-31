@@ -381,10 +381,16 @@ const APP = {
     this._clearStore();
     document.querySelectorAll('#sub-sx .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.sub===sub));
     document.querySelectorAll('#pg-surgery .sub-page').forEach(p => p.style.display='none');
-    document.getElementById(sub==='sxList'?'pg-sx-list':'pg-track').style.display = 'flex';
-    document.getElementById('fab').style.display = 'flex';
-    if(sub==='sxList') this.loadSurgery();
-    else this.loadTrack();
+    if(sub==='stats') {
+      document.getElementById('pg-stats').style.display = 'flex';
+      document.getElementById('fab').style.display = 'none';
+      this.loadStats();
+    } else {
+      document.getElementById(sub==='sxList'?'pg-sx-list':'pg-track').style.display = 'flex';
+      document.getElementById('fab').style.display = 'flex';
+      if(sub==='sxList') this.loadSurgery();
+      else this.loadTrack();
+    }
   },
 
   fabClick() {
@@ -987,6 +993,175 @@ const APP = {
       });
       el.innerHTML = rows;
     } catch(e) { el.innerHTML = `<tr><td colspan="8">${this.err(e)}</td></tr>`; }
+  },
+
+  // ── Statistics ──
+  _statsMonth: null,
+  _initStatsMonth() {
+    const n = new Date();
+    this._statsMonth = `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`;
+  },
+  statsNavMonth(delta) {
+    if(!this._statsMonth) this._initStatsMonth();
+    const [y, m] = this._statsMonth.split('/').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    this._statsMonth = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    this._renderStats();
+  },
+  async loadStats() {
+    if(!this._statsMonth) this._initStatsMonth();
+    document.getElementById('stats-month-label').textContent = this._statsMonth;
+    await this._renderStats();
+  },
+  async _renderStats() {
+    const body = document.getElementById('stats-body');
+    body.innerHTML = this.loading();
+    document.getElementById('stats-month-label').textContent = this._statsMonth;
+
+    const KEY_SX = [
+      { cat:'人工關節', label:'TKA',  re:/TKA/i  },
+      { cat:'',         label:'THA',  re:/THA/i  },
+      { cat:'',         label:'RTSA', re:/RTSA/i },
+      { cat:'肩關節鏡', label:'RCT',  re:/RCT/i  },
+      { cat:'',         label:'SLAP', re:/SLAP/i },
+    ];
+    const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
+
+    try {
+      if(!SHEETS.boneCats) await SHEETS.loadCategories();
+      const ops = await SHEETS.loadOpRecords();
+      const month = this._statsMonth;
+      const mOps = ops.filter(r => r.date && r.date.startsWith(month));
+
+      // 總覽
+      const zh = mOps.filter(r => r.area==='中正').length;
+      const yc = mOps.filter(r => r.area==='右昌').length;
+      const other = mOps.length - zh - yc;
+
+      // 類型分布
+      const typeMap = {};
+      mOps.forEach(r => { if(r.type) typeMap[r.type]=(typeMap[r.type]||0)+1; });
+      const types = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
+      const maxT = types[0]?.[1] || 1;
+
+      // 指標性手術
+      const keyCounts = KEY_SX.map(k => ({
+        ...k,
+        month: mOps.filter(r => k.re.test(r.opName||'')).length,
+        total: ops.filter(r => k.re.test(r.opName||'')).length,
+      }));
+
+      // 骨材 + 生長因子（從 implant 解析）
+      const boneMap = {}, gfMap = {};
+      const gfList = SHEETS.growthFactors || [];
+      const bCats = SHEETS.boneCats || [];
+      mOps.forEach(r => {
+        if(!r.implant) return;
+        this._parseImplantToSelections(r.implant, bCats).forEach(s => {
+          if(!s.product) return;
+          const target = gfList.includes(s.product) ? gfMap : boneMap;
+          target[s.product] = (target[s.product]||0) + (s.qty||1);
+        });
+      });
+      const bones = Object.entries(boneMap).sort((a,b)=>b[1]-a[1]);
+      const gfs   = Object.entries(gfMap).sort((a,b)=>b[1]-a[1]);
+
+      // ── Render ──
+      const parts = [];
+
+      // Card 1: 總覽
+      const areaText = [zh?`中正 ${zh}`:'', yc?`右昌 ${yc}`:'', other?`其他 ${other}`:''].filter(Boolean).join(' ／ ');
+      parts.push(`<div class="stats-card">
+        <div class="stats-card-title">本月手術</div>
+        <div class="stats-hero">${mOps.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
+        <div class="stats-sub">${areaText||'—'}</div>
+      </div>`);
+
+      // Card 2: 類型分布
+      if(types.length) {
+        let typeHtml = types.map(([type, cnt]) => {
+          const color = TYPE_COLOR[type] || 'var(--accent)';
+          const pct = Math.round(cnt/maxT*100);
+          return `<div class="stats-type-row">
+            <span class="badge badge-${type}" style="min-width:62px;text-align:center">${type}</span>
+            <div class="stats-bar-bg"><div class="stats-bar" style="width:${pct}%;background:${color}"></div></div>
+            <span class="stats-type-n">${cnt}</span>
+          </div>`;
+        }).join('');
+        parts.push(`<div class="stats-card"><div class="stats-card-title">類型分布</div>${typeHtml}</div>`);
+      }
+
+      // Card: 近12個月趨勢 (Feature 6)
+      const months12 = [];
+      const [sy, sm] = this._statsMonth.split('/').map(Number);
+      for (let i = 11; i >= 0; i--) {
+        const td = new Date(sy, sm - 1 - i, 1);
+        months12.push(`${td.getFullYear()}/${String(td.getMonth()+1).padStart(2,'0')}`);
+      }
+      const monthlyCounts = months12.map(m => ({
+        label: m.substring(5),
+        count: ops.filter(r => r.date && r.date.startsWith(m)).length,
+        isCur: m === this._statsMonth,
+      }));
+      const maxCnt = Math.max(...monthlyCounts.map(x => x.count), 1);
+      const barW = 18, barGap = 6, chartH = 60;
+      const trendBars = monthlyCounts.map((mc, i) => {
+        const bh = Math.max(Math.round(mc.count / maxCnt * chartH), mc.count > 0 ? 2 : 0);
+        const bx = i * (barW + barGap), by = chartH - bh;
+        const clr = mc.isCur ? 'var(--accent)' : '#94a3b8';
+        return `<rect x="${bx}" y="${by}" width="${barW}" height="${bh}" rx="2" fill="${clr}"/>
+<text x="${bx+barW/2}" y="${chartH+13}" text-anchor="middle" font-size="9" fill="var(--txt2)">${mc.label}</text>${mc.count>0?`<text x="${bx+barW/2}" y="${by-3}" text-anchor="middle" font-size="9" fill="var(--txt2)">${mc.count}</text>`:''}`;
+      }).join('');
+      const svgW = (barW+barGap)*12 - barGap;
+      parts.push(`<div class="stats-card"><div class="stats-card-title">近12個月趨勢</div>
+        <svg viewBox="0 0 ${svgW} ${chartH+18}" width="100%" style="overflow:visible;display:block">${trendBars}</svg>
+      </div>`);
+
+      // Card: 常見手術名稱 Top 5 (Feature 7)
+      const opNameMap = {};
+      mOps.forEach(r => { if(r.opName) opNameMap[r.opName] = (opNameMap[r.opName]||0)+1; });
+      const topOps = Object.entries(opNameMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      if(topOps.length) {
+        const topHtml = topOps.map(([n,q])=>`<div class="stats-item-row"><span class="stats-item-name">${n}</span><span class="stats-item-qty">${q}</span></div>`).join('');
+        parts.push(`<div class="stats-card"><div class="stats-card-title">常見手術名稱 Top 5</div>${topHtml}</div>`);
+      }
+
+      // Card 3: 指標性手術
+      let keyRows = '', lastCat = '';
+      keyCounts.forEach(k => {
+        if(k.cat && k.cat !== lastCat) {
+          keyRows += `<tr><td class="stats-key-cat" colspan="3">${k.cat}</td></tr>`;
+          lastCat = k.cat;
+        }
+        const mColor = k.month > 0 ? 'color:var(--accent)' : 'color:var(--muted)';
+        keyRows += `<tr>
+          <td>${k.label}</td>
+          <td style="${mColor}">${k.month}</td>
+          <td style="color:var(--txt2)">${k.total}</td>
+        </tr>`;
+      });
+      parts.push(`<div class="stats-card">
+        <div class="stats-card-title">指標性手術</div>
+        <table class="stats-key-table">
+          <thead><tr><th></th><th>本月</th><th>累積</th></tr></thead>
+          <tbody>${keyRows}</tbody>
+        </table>
+      </div>`);
+
+      // Card 4: 骨材
+      if(bones.length) {
+        const bHtml = bones.map(([n,q])=>`<div class="stats-item-row"><span class="stats-item-name">${n}</span><span class="stats-item-qty">${q}</span></div>`).join('');
+        parts.push(`<div class="stats-card"><div class="stats-card-title">骨材用量（本月）</div>${bHtml}</div>`);
+      }
+
+      // Card 5: 生長因子
+      if(gfs.length) {
+        const gHtml = gfs.map(([n,q])=>`<div class="stats-item-row"><span class="stats-item-name">${n}</span><span class="stats-item-qty">${q}</span></div>`).join('');
+        parts.push(`<div class="stats-card"><div class="stats-card-title">生長因子（本月）</div>${gHtml}</div>`);
+      }
+
+      body.innerHTML = parts.join('') || `<div style="color:var(--muted);padding:32px 0;text-align:center">本月無手術紀錄</div>`;
+    } catch(e) { body.innerHTML = this.err(e); }
   },
 
   // ── Material Records ──
