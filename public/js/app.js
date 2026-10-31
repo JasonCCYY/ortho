@@ -688,6 +688,7 @@ const APP = {
         implant,
         note: p.note,
       });
+      this._markAddedToday('sx', p.date+'|'+p.name);
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
@@ -941,13 +942,15 @@ const APP = {
         const _si=APP._storeRow(r);
         const isYC = r.area==='右昌';
         const missingData = !r.name || !r.mrn;
+        const isNew = this._isAddedToday('sx', r.date+'|'+r.name);
         const prefix = missingData ? '<span style="color:var(--red);font-weight:700">*</span>' : (isYC ? '<span style="color:var(--muted)">．</span>' : '');
+        const dotHtml = isNew ? '<span class="new-dot" style="display:inline-block;vertical-align:middle;margin-right:3px"></span>' : '';
         const nameHtml = (nameCount[r.name]||0) > 1
           ? `<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span>`
           : (r.name||'');
-        rows += `<tr class="sx-data-row" onclick="APP.openDetailS('sx',${_si})">
+        rows += `<tr class="sx-data-row${isNew?' row-new':''}" onclick="APP.openDetailS('sx',${_si})">
           <td class="sx-date">${day}</td>
-          <td class="sx-name">${prefix}${nameHtml}</td>
+          <td class="sx-name">${dotHtml}${prefix}${nameHtml}</td>
           <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
           <td class="sx-opname">${r.opName}</td>
           <td class="sx-loc" title="${r.location}">${r.location}</td>
@@ -1883,6 +1886,7 @@ const APP = {
     this._scanEditIdx = null;
     try{
       await SHEETS.addOp(d);
+      this._markAddedToday('sx', d.date+'|'+d.name);
       if(scanIdx !== null) {
         const sp = this._scanPatients?.[scanIdx];
         for(const c of (sp?.matchedCodes || [])) {
