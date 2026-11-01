@@ -61,6 +61,20 @@ const APP = {
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
   todayISO() { return new Date().toISOString().split('T')[0]; },
 
+  _markAddedToday(type, fp) {
+    try {
+      const k = 'ortho_new_' + this.today();
+      const arr = JSON.parse(localStorage.getItem(k)||'[]');
+      if(!arr.includes(type+':'+fp)) { arr.push(type+':'+fp); localStorage.setItem(k, JSON.stringify(arr)); }
+      for(const key of Object.keys(localStorage))
+        if(key.startsWith('ortho_new_') && key!==k) localStorage.removeItem(key);
+    } catch(e){}
+  },
+  _isAddedToday(type, fp) {
+    try { return JSON.parse(localStorage.getItem('ortho_new_'+this.today())||'[]').includes(type+':'+fp); }
+    catch(e){ return false; }
+  },
+
   // 把各種日期格式轉成 YYYY-MM-DD（給 type="date" 用）
   toISO(s) {
     s = String(s||'').trim();
@@ -660,6 +674,7 @@ const APP = {
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
         await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
+        this._markAddedToday('code', this.today()+'|'+c.name+'|'+c.code+'|中正');
       }
 
       this.toast(`✅ ${p.name} 已新增`);
@@ -1302,8 +1317,8 @@ const APP = {
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
         const areaOrd=['中正','右昌'];
         const sorted=[...rows].sort((a,b)=>{
-          const aN=a.todayNew?.toString().toUpperCase()==='TRUE';
-          const bN=b.todayNew?.toString().toUpperCase()==='TRUE';
+          const aN=this._isAddedToday('code', a.date+'|'+a.name+'|'+a.code+'|'+a.area);
+          const bN=this._isAddedToday('code', b.date+'|'+b.name+'|'+b.code+'|'+b.area);
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
           const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
           if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
@@ -1312,7 +1327,7 @@ const APP = {
           return parseInt(a.code||0)-parseInt(b.code||0);
         });
         sorted.forEach(r => {
-          const isNew=r.todayNew?.toString().toUpperCase()==='TRUE';
+          const isNew=this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const t=resolveType(r);
           const _si=APP._storeRow(r);
@@ -1446,20 +1461,20 @@ const APP = {
 
   // ── Quick adds ──
   async qAddMat(brand, product, price) {
-    try { await SHEETS.quickAddMat(brand, product, price); this.toast(`✅ 已新增 ${product}`); }
+    try { await SHEETS.quickAddMat(brand, product, price); this._markAddedToday('mat', this.today()+'|'+brand+'|'+product+'|門診'); this.toast(`✅ 已新增 ${product}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddCode(name, code, price, area, type='') {
-    try { await SHEETS.quickAddCode({name,code,price,area,type}); this.toast(`✅ 已新增 ${name}`); }
+    try { await SHEETS.quickAddCode({name,code,price,area,type}); this._markAddedToday('code', this.today()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddCodeHalf(name, code, price, area, type='') {
     const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
-    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this._markAddedToday('code', this.today()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddClinic(name, price) {
-    try { await SHEETS.quickAddClinic(name, price); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
+    try { await SHEETS.quickAddClinic(name, price); this._markAddedToday('clinic', this.today()+'|'+name); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async markDone(row) {
@@ -1728,6 +1743,7 @@ const APP = {
         const sp = this._scanPatients?.[scanIdx];
         for(const c of (sp?.matchedCodes || [])) {
           await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
+          this._markAddedToday('code', this.today()+'|'+c.name+'|'+c.code+'|中正');
         }
       }
       // Sync bone chips → 骨材記錄
@@ -1742,6 +1758,7 @@ const APP = {
             date: d.date, brand: s.brand || s.product, product: s.product,
             price: prod?.price || '', qty: s.qty || 1, patient: d.name
           });
+          this._markAddedToday('mat', d.date+'|'+(s.brand||s.product)+'|'+s.product+'|'+d.name);
         }
       }
       this.closeModal('modal-op');

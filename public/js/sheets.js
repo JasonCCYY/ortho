@@ -88,6 +88,10 @@ const SHEETS = {
     const n = new Date();
     return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`;
   },
+  nowDate() {
+    const n = new Date();
+    return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`;
+  },
 
   // ── Cached loaders ──
   async cached(key, loader) {
@@ -400,7 +404,7 @@ const SHEETS = {
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this.nowMonth(),brand,product,price,'1','門診','false'];
+    const row = [this.nowDate(),brand,product,price,'1','門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
@@ -411,13 +415,14 @@ const SHEETS = {
   },
 
   async quickAddCode(d) {
-    const r = await this.append(this.T.codeRec, [[this.nowMonth(),d.name,d.price,d.code,d.area,'1',d.type||'','TRUE']]);
+    const date = d.date || this.nowDate();
+    const r = await this.append(this.T.codeRec, [[date,d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddClinic(name, price) {
     const cleanP = parseFloat(String(price).replace(/,/g,'')) || 0;
-    const r = await this.append(this.T.clinic, [[this.nowMonth(),name,cleanP,'1','TRUE']]);
+    const r = await this.append(this.T.clinic, [[this.nowDate(),name,cleanP,'1','']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
