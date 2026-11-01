@@ -695,7 +695,7 @@ const APP = {
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date });
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date, patient: p.name });
         this._markAddedToday('code', p.date.substring(0,7)+'|'+c.name+'|'+c.code+'|中正');
       }
 
@@ -1912,7 +1912,7 @@ const APP = {
           await SHEETS.deleteCodesByPatient(r.date.substring(0,7), newName);
           const editArea = document.getElementById('es-area-val').value || r.area || '中正';
           for(const c of (this._editOpCodes||[])) {
-            await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||''});
+            await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||'', patient:newName, date:esDate});
             this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+editArea);
           }
         } catch(e2) { this.toast('⚠️ 代碼同步失敗'); }
@@ -2047,7 +2047,7 @@ const APP = {
           const price = half ? Math.round(parseFloat(String(master.price||0).replace(/,/g,''))/2) : (parseFloat(String(master.price||0).replace(/,/g,''))||0);
           const name = master.name+(half?'*':'');
           const codeVal = master.code+(half?'*':'');
-          await SHEETS.quickAddCode({name, code:codeVal, price, area:r.area||'中正', type:master.type||'', date:r.date});
+          await SHEETS.quickAddCode({name, code:codeVal, price, area:r.area||'中正', type:master.type||'', date:r.date, patient:r.name});
           this._markAddedToday('code', month+'|'+name+'|'+codeVal+'|'+(r.area||'中正'));
         }
       }
@@ -2093,13 +2093,13 @@ const APP = {
       if(scanIdx !== null) {
         const sp = this._scanPatients?.[scanIdx];
         for(const c of (sp?.matchedCodes || [])) {
-          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
+          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', patient: d.name, date: d.date });
           this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|中正');
         }
       }
       // Write pending codes from picker
       for(const c of (this._pendingOpCodes||[])) {
-        await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'' });
+        await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'', patient:d.name, date:d.date });
         this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+d.area);
       }
       this._pendingOpCodes = [];
