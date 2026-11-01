@@ -1330,7 +1330,8 @@ const APP = {
     try {
       let recs = await SHEETS.loadMatRecords();
       if(!recs.length) { el.innerHTML = this.empty(); return; }
-      const isManualToday = r => this._isAddedToday('mat', r.date+'|'+r.brand+'|'+r.product+'|'+r.patient);
+      const isManualToday = r => this._isAddedToday('mat', r.date+'|'+r.brand+'|'+r.product+'|'+r.patient)
+                              || (r.patient === '門診' && r.date === this.today());
       let html = '';
       let detailCtr = 0;
       this.groupByMonth(recs).forEach(([m, rows]) => {
@@ -1654,7 +1655,7 @@ const APP = {
           return oa!==ob ? oa-ob : b.date.localeCompare(a.date);
         });
         sortedRows.forEach(r => {
-          const isNew=this._isAddedToday('clinic', r.date+'|'+r.product);
+          const isNew=this._isAddedToday('clinic', r.date+'|'+r.product) || r.date === this.today();
           const _si=APP._storeRow(r);
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const rowTotal=cleanP*(parseInt(r.qty)||1);
