@@ -677,6 +677,23 @@ const APP = {
         this._markAddedToday('code', this.today()+'|'+c.name+'|'+c.code+'|中正');
       }
 
+      // 新增骨材記錄（辨識到的 implants）
+      if (p.implants && p.implants.length) {
+        const bCats = SHEETS.boneCats || [];
+        const matProds = await SHEETS.loadMatProducts();
+        for (const impl of p.implants) {
+          const lo = impl.toLowerCase();
+          const m = bCats.find(c=>(c.brand+' '+c.product).toLowerCase()===lo)
+                 || bCats.find(c=>c.product.toLowerCase()===lo)
+                 || bCats.find(c=>c.brand.toLowerCase()===lo);
+          if (!m) continue;
+          const prod = matProds.find(pr=>pr.brand===m.brand&&pr.product===m.product)
+                    || matProds.find(pr=>pr.product===m.product);
+          await SHEETS.addMatFromSurgery({ date: p.date, brand: m.brand, product: m.product, price: prod?.price||'', qty: 1, patient: p.name });
+          this._markAddedToday('mat', p.date+'|'+m.brand+'|'+m.product+'|'+p.name);
+        }
+      }
+
       this.toast(`✅ ${p.name} 已新增`);
       card.style.opacity = '0.4';
       card.style.pointerEvents = 'none';
