@@ -1554,7 +1554,7 @@ const APP = {
               <span class="${isNew?'new-dot':'dot-ph'}"></span>
               <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date)?r.date.slice(5):r.date}</span>
               <span class="detail-patient" style="flex:1">${r.patient||'—'}</span>
-              <span class="detail-qty"> *${r.qty||1}</span>
+              ${(parseInt(r.qty)||1)>1?`<span class="detail-qty"> *${r.qty}</span>`:''}
             </div>`;
           });
           html += `</div>`;
