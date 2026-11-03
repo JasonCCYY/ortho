@@ -1821,9 +1821,9 @@ const APP = {
       if(type==='sx') {
         // opname select
         const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const sel=document.getElementById('es-opname');
-        sel.innerHTML='<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}"${n===r.opName?' selected':''}>${n}</option>`).join('');
-        if(!names.includes(r.opName)&&r.opName){sel.innerHTML+=`<option value="${r.opName}" selected>${r.opName}</option>`;}
+        const dl=document.getElementById('es-opname-list');
+        if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+        document.getElementById('es-opname').value=r.opName||'';
         // bone chips — init directly
         APP.initEsBoneChips(typeVal, r.implant||'');
         // Load existing codes for editing
@@ -1839,9 +1839,9 @@ const APP = {
       } else {
         // Populate et-opname select
         const etNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const etSel=document.getElementById('et-opname');
-        etSel.innerHTML='<option value="">選擇手術名稱</option>'+etNames.map(n=>`<option value="${n}"${n===r.opName?' selected':''}>${n}</option>`).join('');
-        if(!etNames.includes(r.opName)&&r.opName){etSel.innerHTML+=`<option value="${r.opName}" selected>${r.opName}</option>`;}
+        const etDl=document.getElementById('et-opname-list');
+        if(etDl) etDl.innerHTML=etNames.map(n=>`<option value="${n}">`).join('');
+        document.getElementById('et-opname').value=r.opName||'';
         APP.initEtBoneChips(typeVal, r.implant||'');
       }
     } else if(type==='mat') {
@@ -2133,7 +2133,7 @@ const APP = {
       this._pendingOpCodes = [];
       const sCodesChips = document.getElementById('s-codes-chips');
       if(sCodesChips) sCodesChips.innerHTML='';
-      document.getElementById('s-opname').innerHTML='<option value="">請先選擇類型</option>';
+      document.getElementById('s-opname').value='';
       document.getElementById('s-type-val').value='Joint';
       document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
       this._initBoneWrap('s-bone-wrap','s-bone-val','Joint','');
@@ -2162,7 +2162,7 @@ const APP = {
       document.getElementById('tk-loc').value='';
       document.getElementById('tk-note').value='';
       if(document.getElementById('tk-bone-val')) document.getElementById('tk-bone-val').value='';
-      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').innerHTML='<option value="">選擇手術名稱</option>';
+      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
       document.getElementById('tk-type-val').value='Joint';
       document.querySelectorAll('#modal-track .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
       this._initBoneWrap('tk-bone-wrap','tk-bone-val','Joint','');
@@ -2242,21 +2242,22 @@ const APP = {
     document.getElementById(pfx+'-type-val').value = type;
     // For edit-sx/et also update bone/opname dropdowns
     if(pfx==='es') {
-      const sel = document.getElementById('es-opname');
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      sel.innerHTML = '<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      const dl=document.getElementById('es-opname-list');
+      if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+      document.getElementById('es-opname').value='';
       APP.initEsBoneChips(type, '');
     } else if(pfx==='et') {
       const etNames2=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      const etSel2=document.getElementById('et-opname');
-      if(etSel2) etSel2.innerHTML='<option value="">選擇手術名稱</option>'+etNames2.map(n=>`<option value="${n}">${n}</option>`).join('');
+      const etDl2=document.getElementById('et-opname-list');
+      if(etDl2) etDl2.innerHTML=etNames2.map(n=>`<option value="${n}">`).join('');
+      if(document.getElementById('et-opname')) document.getElementById('et-opname').value='';
       APP.initEtBoneChips(type, '');
     } else if(pfx==='tk') {
-      const tkSel=document.getElementById('tk-opname');
-      if(tkSel) {
-        const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-        tkSel.innerHTML='<option value="">選擇手術名稱</option>'+tkNames.map(n=>`<option value="${n}">${n}</option>`).join('');
-      }
+      const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
+      const tkDl=document.getElementById('tk-opname-list');
+      if(tkDl) tkDl.innerHTML=tkNames.map(n=>`<option value="${n}">`).join('');
+      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
       APP.initTkBoneChips(type, '');
     }
   },
@@ -2446,11 +2447,12 @@ const APP = {
     el.classList.add('on');
     document.getElementById('tk-type-val').value = type;
     // Update opname select
-    const sel = document.getElementById('tk-opname');
-    if(sel) {
+    const tkDl2 = document.getElementById('tk-opname-list');
+    if(tkDl2) {
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      sel.innerHTML = '<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      tkDl2.innerHTML = names.map(n=>`<option value="${n}">`).join('');
     }
+    if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
     APP.initTkBoneChips(type, '');
   },
   // Surgery modal chips
@@ -2470,9 +2472,10 @@ const APP = {
     this.updateOpDropdowns(type);
   },
   updateOpDropdowns(type){
-    const sel=document.getElementById('s-opname');
     const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-    sel.innerHTML='<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    const dl=document.getElementById('s-opname-list');
+    if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+    document.getElementById('s-opname').value='';
     this._initBoneWrap('s-bone-wrap','s-bone-val', type, '');
   },
 
