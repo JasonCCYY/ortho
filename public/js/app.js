@@ -696,7 +696,7 @@ const APP = {
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
         await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date, patient: p.name });
-        this._markAddedToday('code', p.date.substring(0,7)+'|'+c.name+'|'+c.code+'|中正');
+        this._markAddedToday('code', p.date+'|'+c.name+'|'+c.code+'|中正');
       }
 
       // 同步骨材記錄
@@ -1683,12 +1683,12 @@ const APP = {
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddCode(name, code, price, area, type='', patient='') {
-    try { await SHEETS.quickAddCode({name,code,price,area,type,patient}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
+    try { await SHEETS.quickAddCode({name,code,price,area,type,patient}); this._markAddedToday('code', SHEETS.nowDate()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async qAddCodeHalf(name, code, price, area, type='', patient='') {
     const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
-    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type, patient}); this._markAddedToday('code', SHEETS.nowMonth()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type, patient}); this._markAddedToday('code', SHEETS.nowDate()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   qAddCodeManual(idx, isHalf) {
@@ -1918,7 +1918,7 @@ const APP = {
           const editArea = document.getElementById('es-area-val').value || r.area || '中正';
           for(const c of (this._editOpCodes||[])) {
             await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||'', patient:newName, date:esDate});
-            this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+editArea);
+            this._markAddedToday('code', esDate+'|'+c.name+'|'+c.code+'|'+editArea);
           }
         } catch(e2) { this.toast('⚠️ 代碼同步失敗'); }
         this._editOpCodes = [];
@@ -2053,7 +2053,7 @@ const APP = {
           const name = master.name+(half?'*':'');
           const codeVal = master.code+(half?'*':'');
           await SHEETS.quickAddCode({name, code:codeVal, price, area:r.area||'中正', type:master.type||'', date:r.date, patient:r.name});
-          this._markAddedToday('code', month+'|'+name+'|'+codeVal+'|'+(r.area||'中正'));
+          this._markAddedToday('code', r.date+'|'+name+'|'+codeVal+'|'+(r.area||'中正'));
         }
       }
       // Re-add bone materials to 醫材記錄
@@ -2097,7 +2097,7 @@ const APP = {
       // Write codes (_pendingOpCodes pre-populated from matchedCodes in scanEdit)
       for(const c of (this._pendingOpCodes||[])) {
         await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'', patient:d.name, date:d.date });
-        this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+d.area);
+        this._markAddedToday('code', d.date+'|'+c.name+'|'+c.code+'|'+d.area);
       }
       this._pendingOpCodes = [];
       // Sync bone chips → 骨材記錄
