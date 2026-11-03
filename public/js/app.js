@@ -889,6 +889,11 @@ const APP = {
         });
         this._updateBoneVal('s-bone-wrap');
       }
+      // Pre-populate recognized codes so they show in the edit modal
+      this._pendingOpCodes = (p.matchedCodes || [])
+        .filter(c => c.found)
+        .map(c => ({ name: c.name, code: c.code, price: c.price, type: c.type || '' }));
+      this._renderPendingCodes('s-codes-chips', this._pendingOpCodes);
     }, 50);
   },
 
@@ -2085,20 +2090,12 @@ const APP = {
     if(await this._checkDuplicate(d.name, d.date) && !confirm(`${d.date} 已有「${d.name}」的手術紀錄，確定仍要新增？`)) return;
     this._savingOp = true;
     const btn=this._lockSaveBtn('modal-op');
-    const scanIdx = this._scanEditIdx ?? null;
     this._scanEditIdx = null;
     try{
       d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
       this._markAddedToday('sx', d.date+'|'+d.name);
-      if(scanIdx !== null) {
-        const sp = this._scanPatients?.[scanIdx];
-        for(const c of (sp?.matchedCodes || [])) {
-          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', patient: d.name, date: d.date });
-          this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|中正');
-        }
-      }
-      // Write pending codes from picker
+      // Write codes (scanEdit pre-populates _pendingOpCodes from matchedCodes)
       for(const c of (this._pendingOpCodes||[])) {
         await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'', patient:d.name, date:d.date });
         this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+d.area);
