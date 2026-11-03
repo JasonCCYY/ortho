@@ -595,10 +595,8 @@ const APP = {
         ...p,
         matchedCodes: (p.codes || []).map(code => {
           const found = codeMap[code];
-          return found
-            ? { code, name: found.name, price: found.price, area: found.area, type: found.type || '', found: true }
-            : { code, name: code, price: '', area: '', type: '', found: false };
-        }),
+          return found ? { code, name: found.name, price: found.price, area: found.area, type: found.type || '' } : null;
+        }).filter(Boolean),
       }));
 
     } catch(e) {
@@ -695,9 +693,8 @@ const APP = {
       });
       this._markAddedToday('sx', p.date+'|'+p.name);
 
-      // 新增代碼紀錄（每個批價碼一筆，跳過代碼表中找不到的）
+      // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        if (!c.found) continue;
         await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date, patient: p.name });
         this._markAddedToday('code', p.date.substring(0,7)+'|'+c.name+'|'+c.code+'|中正');
       }
@@ -894,7 +891,7 @@ const APP = {
       }
       // Pre-populate recognized codes so they show in the edit modal
       this._pendingOpCodes = (p.matchedCodes || [])
-        .map(c => ({ name: c.name || c.code, code: c.code, price: c.price, type: c.type || '' }));
+        .map(c => ({ name: c.name, code: c.code, price: c.price, type: c.type || '' }));
       this._renderPendingCodes('s-codes-chips', this._pendingOpCodes);
     }, 50);
   },
@@ -2097,9 +2094,8 @@ const APP = {
       d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
       this._markAddedToday('sx', d.date+'|'+d.name);
-      // Write codes (scanEdit pre-populates _pendingOpCodes from matchedCodes; skip not-found)
+      // Write codes (_pendingOpCodes pre-populated from matchedCodes in scanEdit)
       for(const c of (this._pendingOpCodes||[])) {
-        if (!c.price && c.name === c.code) continue; // not-found code, no price/name info
         await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'', patient:d.name, date:d.date });
         this._markAddedToday('code', SHEETS.nowMonth()+'|'+c.name+'|'+c.code+'|'+d.area);
       }
