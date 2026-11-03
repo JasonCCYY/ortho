@@ -45,6 +45,9 @@ const SHEETS = {
     return r ? r.data : null;
   },
 
+  // Prefix with ' so Sheets stores the value as text, not as a date serial
+  _d(s) { return s ? "'" + s : ''; },
+
   // ── Core read/write ──
   async read(tab, range) {
     const url = `${this.BASE}/${this.ID}/values/${encodeURIComponent(tab + '!' + range)}`;
@@ -305,7 +308,7 @@ const SHEETS = {
   },
 
   async addMatFromSurgery(d) {
-    const row = [d.date, d.brand, d.product, d.price||'', d.qty||1, d.patient, 'false'];
+    const row = [this._d(d.date), d.brand, d.product, d.price||'', d.qty||1, d.patient, 'false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
@@ -417,12 +420,12 @@ const SHEETS = {
   },
 
   async addOp(d) {
-    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
+    const r = await this.append(this.T.op, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_op'); return r;
   },
 
   async addTrack(d) {
-    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
+    const r = await this.append(this.T.track, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_track'); return r;
   },
 
@@ -448,36 +451,36 @@ const SHEETS = {
   },
 
   async addMat(d) {
-    const row = [d.date,d.brand,d.product,d.price,d.qty,d.patient||'門診','false'];
+    const row = [this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this.nowDate(),brand,product,price,'1','門診','false'];
+    const row = [this._d(this.nowDate()),brand,product,price,'1','門診','false'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async addCode(d) {
-    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,d.type||'']]);
+    const r = await this.append(this.T.codeRec, [[this._d(d.date),d.name,d.price,d.code,d.area,d.qty,d.type||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddCode(d) {
     const date = d.date || this.nowDate();
-    const r = await this.append(this.T.codeRec, [[date,d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
+    const r = await this.append(this.T.codeRec, [[this._d(date),d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddClinic(name, price) {
     const cleanP = parseFloat(String(price).replace(/,/g,'')) || 0;
-    const r = await this.append(this.T.clinic, [[this.nowMonth(),name,cleanP,'1']]);
+    const r = await this.append(this.T.clinic, [[this._d(this.nowMonth()),name,cleanP,'1']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
   async addClinic(d) {
-    const r = await this.append(this.T.clinic, [[d.date,d.product,d.price||'',d.qty,'']]);
+    const r = await this.append(this.T.clinic, [[this._d(d.date),d.product,d.price||'',d.qty,'']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
