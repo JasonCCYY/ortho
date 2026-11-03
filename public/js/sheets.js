@@ -268,18 +268,18 @@ const SHEETS = {
 
   // ── Writers ──
   async updateSurgery(row, d) {
-    await this.put(this.T.op+'!A'+row+':J'+row, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    await this.put(this.T.op+'!A'+row+':J'+row, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_op');
   },
 
   async updateTrack(row, d) {
-    await this.put(this.T.track+'!A'+row+':J'+row, [[d.date,d.area,d.mrn,d.clinicId,d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    await this.put(this.T.track+'!A'+row+':J'+row, [[this._d(d.date),d.area,d.mrn,d.clinicId,d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_track');
   },
 
   async updateMatRow(row, d) {
     const done = d.done !== undefined ? d.done : 'false';
-    await this.put(this.T.matRec+'!A'+row+':G'+row, [[d.date,d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
+    await this.put(this.T.matRec+'!A'+row+':G'+row, [[this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
     localStorage.removeItem('ortho_matRec2');
   },
 
