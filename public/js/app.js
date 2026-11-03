@@ -1396,8 +1396,11 @@ const APP = {
 
   async markDoneGroup(em, eb, ep) {
     const month = decodeURIComponent(em), brand = decodeURIComponent(eb), product = decodeURIComponent(ep);
-    try { await SHEETS.setDoneForMonth(month, brand, product); this.toast('✅ 已標記完成'); this.loadMatRec(); }
-    catch(e) { this.toast('❌ '+e.message); }
+    try {
+      const rows = await SHEETS.setDoneForMonth(month, brand, product);
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndoneRows(rows); this.loadMatRec(); });
+      this.loadMatRec();
+    } catch(e) { this.toast('❌ '+e.message); }
   },
 
   // ── Self-pay ──
@@ -1702,8 +1705,11 @@ const APP = {
     catch(e) { this.toast('❌ '+e.message); }
   },
   async markDone(row) {
-    try { await SHEETS.setDone(row); this.toast('✅ 已標記完成'); this.loadMatRec(); }
-    catch(e) { this.toast('❌ '+e.message); }
+    try {
+      await SHEETS.setDone(row);
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndone(row); this.loadMatRec(); });
+      this.loadMatRec();
+    } catch(e) { this.toast('❌ '+e.message); }
   },
 
   // ── Detail Modal via store index (avoids HTML encoding issues) ──
@@ -2493,6 +2499,19 @@ const APP = {
     }
   },
 
+  toastUndo(msg, undoFn) {
+    this._undoFn = undoFn;
+    clearTimeout(this._undoTimer);
+    const el = document.getElementById('toast-undo');
+    el.querySelector('.tu-msg').textContent = msg;
+    el.classList.add('show');
+    this._undoTimer = setTimeout(() => { el.classList.remove('show'); this._undoFn = null; }, 4000);
+  },
+  async doUndo() {
+    clearTimeout(this._undoTimer);
+    document.getElementById('toast-undo').classList.remove('show');
+    if (this._undoFn) { const fn = this._undoFn; this._undoFn = null; try { await fn(); } catch(e) { this.toast('❌ '+e.message); } }
+  },
   toast(msg){
     const el=document.getElementById('toast');
     el.textContent=msg; el.classList.add('show');

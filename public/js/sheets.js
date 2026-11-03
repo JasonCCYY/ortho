@@ -287,6 +287,14 @@ const SHEETS = {
     await this.put(this.T.matRec+'!G'+row, [['true']]);
     localStorage.removeItem('ortho_matRec2');
   },
+  async setUndone(row) {
+    await this.put(this.T.matRec+'!G'+row, [['false']]);
+    localStorage.removeItem('ortho_matRec2');
+  },
+  async setUndoneRows(rows) {
+    for (const row of rows) await this.put(this.T.matRec+'!G'+row, [['false']]);
+    if (rows.length) localStorage.removeItem('ortho_matRec2');
+  },
 
   async setDoneForMonth(month, brand, product) {
     const recs = await this.read(this.T.matRec, 'A2:G500');
@@ -305,6 +313,7 @@ const SHEETS = {
       await this.put(this.T.matRec+'!G'+row, [['true']]);
     }
     if (updates.length) localStorage.removeItem('ortho_matRec2');
+    return updates;
   },
 
   async addMatFromSurgery(d) {
