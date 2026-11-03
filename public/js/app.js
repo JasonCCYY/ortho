@@ -1826,8 +1826,8 @@ const APP = {
       if(type==='sx') {
         // opname select
         const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const dl=document.getElementById('es-opname-list');
-        if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+        const esSel=document.getElementById('es-opname-sel');
+        if(esSel) esSel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
         document.getElementById('es-opname').value=r.opName||'';
         // bone chips — init directly
         APP.initEsBoneChips(typeVal, r.implant||'');
@@ -1844,8 +1844,8 @@ const APP = {
       } else {
         // Populate et-opname select
         const etNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const etDl=document.getElementById('et-opname-list');
-        if(etDl) etDl.innerHTML=etNames.map(n=>`<option value="${n}">`).join('');
+        const etSel=document.getElementById('et-opname-sel');
+        if(etSel) etSel.innerHTML='<option value="">▾ 選</option>'+etNames.map(n=>`<option value="${n}">${n}</option>`).join('');
         document.getElementById('et-opname').value=r.opName||'';
         APP.initEtBoneChips(typeVal, r.implant||'');
       }
@@ -2240,20 +2240,20 @@ const APP = {
     // For edit-sx/et also update bone/opname dropdowns
     if(pfx==='es') {
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      const dl=document.getElementById('es-opname-list');
-      if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+      const sel=document.getElementById('es-opname-sel');
+      if(sel) sel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
       document.getElementById('es-opname').value='';
       APP.initEsBoneChips(type, '');
     } else if(pfx==='et') {
       const etNames2=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      const etDl2=document.getElementById('et-opname-list');
-      if(etDl2) etDl2.innerHTML=etNames2.map(n=>`<option value="${n}">`).join('');
+      const etSel2=document.getElementById('et-opname-sel');
+      if(etSel2) etSel2.innerHTML='<option value="">▾ 選</option>'+etNames2.map(n=>`<option value="${n}">${n}</option>`).join('');
       if(document.getElementById('et-opname')) document.getElementById('et-opname').value='';
       APP.initEtBoneChips(type, '');
     } else if(pfx==='tk') {
       const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      const tkDl=document.getElementById('tk-opname-list');
-      if(tkDl) tkDl.innerHTML=tkNames.map(n=>`<option value="${n}">`).join('');
+      const tkSel=document.getElementById('tk-opname-sel');
+      if(tkSel) tkSel.innerHTML='<option value="">▾ 選</option>'+tkNames.map(n=>`<option value="${n}">${n}</option>`).join('');
       if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
       APP.initTkBoneChips(type, '');
     }
@@ -2470,8 +2470,8 @@ const APP = {
   },
   updateOpDropdowns(type){
     const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-    const dl=document.getElementById('s-opname-list');
-    if(dl) dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');
+    const sel=document.getElementById('s-opname-sel');
+    if(sel) sel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
     document.getElementById('s-opname').value='';
     this._initBoneWrap('s-bone-wrap','s-bone-val', type, '');
   },

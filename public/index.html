@@ -299,7 +299,7 @@
       <button class="chip" onclick="APP.editSelectType(this,'Infection','es')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><input class="f-input" id="es-opname" list="es-opname-list" placeholder="選擇或輸入手術名稱" autocomplete="off"><datalist id="es-opname-list"></datalist></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="es-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('es-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="es-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="es-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="es-bone-val">
@@ -340,7 +340,7 @@
       <button class="chip" onclick="APP.editSelectType(this,'Infection','et')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><input class="f-input" id="et-opname" list="et-opname-list" placeholder="選擇或輸入手術名稱" autocomplete="off"><datalist id="et-opname-list"></datalist></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="et-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('et-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="et-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="et-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="et-bone-val">
@@ -446,7 +446,7 @@
       <button class="chip" onclick="APP.selectType(this,'Infection')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><input class="f-input" id="s-opname" list="s-opname-list" placeholder="選擇或輸入手術名稱" autocomplete="off"><datalist id="s-opname-list"></datalist></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="s-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('s-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="s-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="s-location" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="s-bone-val">
@@ -487,7 +487,7 @@
       <button class="chip" onclick="APP.tkSelectType(this,'Infection')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><input class="f-input" id="tk-opname" list="tk-opname-list" placeholder="選擇或輸入手術名稱" autocomplete="off"><datalist id="tk-opname-list"></datalist></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="tk-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('tk-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="tk-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="tk-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="tk-bone-val">
