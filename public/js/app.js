@@ -1162,6 +1162,7 @@ const APP = {
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
 
     try {
+      localStorage.removeItem('ortho_matProd');
       await SHEETS.loadCategories();
       const allOps = await SHEETS.loadOpRecords();
       const STATS_START = '2025/08';
