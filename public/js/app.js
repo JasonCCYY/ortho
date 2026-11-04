@@ -1182,12 +1182,12 @@ const APP = {
       const types = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
       const maxT = types[0]?.[1] || 1;
 
-      // 指標性手術（只算到本月，下個月以後不列入）
-      const curMonth = SHEETS.nowMonth();
+      // 指標性手術（只算到今天，未來日期不列入）
+      const today = SHEETS.nowDate();
       const year = this._statsMonth.substring(0, 4);
-      const pastOps = ops.filter(r => r.date && r.date.substring(0,7) <= curMonth);
+      const pastOps = ops.filter(r => r.date && r.date <= today);
       const yOps = pastOps.filter(r => r.date.startsWith(year));
-      const mPastOps = mOps.filter(r => r.date.substring(0,7) <= curMonth);
+      const mPastOps = mOps.filter(r => r.date <= today);
       const keyCounts = KEY_SX.map(k => ({
         ...k,
         month: mPastOps.filter(r => k.re.test(r.opName||'')).length,
