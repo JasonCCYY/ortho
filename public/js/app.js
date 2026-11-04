@@ -2379,7 +2379,10 @@ const APP = {
     map.clear();
     this._getBoneDir(wrapId).clear();
     if (implant) {
-      this._parseImplantToSelections(implant, boneCats).forEach(s => map.set(s.brand+'|'+s.product, s.qty));
+      this._parseImplantToSelections(implant, boneCats).forEach(s => {
+        const key = (growth.includes(s.product) ? '' : s.brand) + '|' + s.product;
+        map.set(key, s.qty);
+      });
     }
     bwrap.dataset.boneType = type;
     const twoLevel = type === 'Trauma' || type === 'Joint';
