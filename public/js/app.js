@@ -1196,12 +1196,19 @@ const APP = {
       const boneMap = {}, gfMap = {};
       const gfList = SHEETS.growthFactors || [];
       const bCats = SHEETS.boneCats || [];
+      const allProds = SHEETS.matProds || [];
+      // Build alias lookup: surgRecord (old name) → canonical product name, for growth factors
+      const gfAlias = {};
+      allProds.filter(p => p.type === '生長因子' && p.surgRecord).forEach(p => { gfAlias[p.surgRecord] = p.product; });
+      const gfNames = new Set([...gfList, ...Object.keys(gfAlias)]);
       mOps.forEach(r => {
         if(!r.implant) return;
         this._parseImplantToSelections(r.implant, bCats).forEach(s => {
           if(!s.product) return;
-          const target = gfList.includes(s.product) ? gfMap : boneMap;
-          target[s.product] = (target[s.product]||0) + (s.qty||1);
+          const isGf = gfNames.has(s.product);
+          const displayName = isGf ? (gfAlias[s.product] || s.product) : s.product;
+          const target = isGf ? gfMap : boneMap;
+          target[displayName] = (target[displayName]||0) + (s.qty||1);
         });
       });
       const bones = Object.entries(boneMap).sort((a,b)=>b[1]-a[1]);
