@@ -1163,6 +1163,7 @@ const APP = {
 
     try {
       localStorage.removeItem('ortho_matProd');
+      localStorage.removeItem('ortho_op');
       await SHEETS.loadCategories();
       const allOps = await SHEETS.loadOpRecords();
       const STATS_START = '2025/08';
@@ -2287,11 +2288,12 @@ const APP = {
       const qm = part.match(/^(.+?)\s*[×*](\d+)$/);
       const text = qm ? qm[1].trim() : part;
       const qty  = qm ? parseInt(qm[2]) : 1;
-      const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
-      const byP  = boneCats.find(c=>c.product===text);
-      const byB  = boneCats.find(c=>c.brand===text);
-      const bySr = (SHEETS.matProds||[]).find(c=>c.surgRecord===text);
-      const m = byBP || byP || byB || bySr;
+      const byBP   = boneCats.find(c=>(c.brand+' '+c.product)===text);
+      const byP    = boneCats.find(c=>c.product===text);
+      const byB    = boneCats.find(c=>c.brand===text);
+      const bySr   = (SHEETS.matProds||[]).find(c=>c.surgRecord===text);
+      const byProd = (SHEETS.matProds||[]).find(c=>c.product===text);
+      const m = byBP || byP || byB || bySr || byProd;
       if (m) return { brand:m.brand, product:m.product, qty };
       return { brand:'', product:text, qty };
     });
