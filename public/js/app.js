@@ -669,7 +669,7 @@ const APP = {
           const m = allProds.find(c => c.product.toLowerCase() === text.toLowerCase())
                  || allProds.find(c => (c.brand+' '+c.product).toLowerCase() === text.toLowerCase())
                  || allProds.find(c => c.surgRecord && c.surgRecord.toLowerCase() === text.toLowerCase());
-          const label = m?.surgRecord || text;
+          const label = m?.product || text;
           return qty > 1 ? label + '*' + qty : label;
         }).join(' , ');
       }
@@ -2351,7 +2351,7 @@ const APP = {
       const cat = brand
         ? allProds.find(c => c.brand === brand && c.product === product)
         : allProds.find(c => c.product === product);
-      const label = cat?.surgRecord || product;
+      const label = product;
       parts.push(qty > 1 ? label+'*'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
