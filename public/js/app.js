@@ -1327,7 +1327,9 @@ const APP = {
   },
 
   // ── Material Records ──
-  async loadMatRec() {
+  async loadMatRec(keepScroll) {
+    const scroller = document.querySelector('#pg-mat-rec .list-content');
+    const savedY = keepScroll ? scroller?.scrollTop : 0;
     this._clearStore();
     const el = document.getElementById('mat-rec-list');
     el.innerHTML = this.loading();
@@ -1386,6 +1388,7 @@ const APP = {
         });
       });
       el.innerHTML = html;
+      if (savedY && scroller) scroller.scrollTop = savedY;
     } catch(e) { el.innerHTML = this.err(e); }
   },
 
@@ -1398,8 +1401,8 @@ const APP = {
     const month = decodeURIComponent(em), brand = decodeURIComponent(eb), product = decodeURIComponent(ep);
     try {
       const rows = await SHEETS.setDoneForMonth(month, brand, product);
-      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndoneRows(rows); this.loadMatRec(); });
-      this.loadMatRec();
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndoneRows(rows); this.loadMatRec(true); });
+      this.loadMatRec(true);
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
@@ -1707,8 +1710,8 @@ const APP = {
   async markDone(row) {
     try {
       await SHEETS.setDone(row);
-      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndone(row); this.loadMatRec(); });
-      this.loadMatRec();
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndone(row); this.loadMatRec(true); });
+      this.loadMatRec(true);
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
