@@ -1009,10 +1009,11 @@ const APP = {
 
   // ── Refresh ──
   refresh() {
-    const cacheMap = { sxList:'op', track:'track', stats:'op', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
+    const cacheMap = { sxList:'op', track:'track', stats:['op','matProd'], matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
-    if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
+    if(Array.isArray(cacheKey)) cacheKey.forEach(k=>localStorage.removeItem('ortho_'+k));
+    else if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
     SHEETS.loadCategories().catch(()=>{});
     if(this.tab==='surgery') this.switchSx(this.subSx);
     else if(this.tab==='material') this.switchMat(this.subMat);
@@ -1161,7 +1162,7 @@ const APP = {
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
 
     try {
-      if(!SHEETS.boneCats) await SHEETS.loadCategories();
+      await SHEETS.loadCategories();
       const allOps = await SHEETS.loadOpRecords();
       const STATS_START = '2025/08';
       const ops = allOps.filter(r => r.date && r.date >= STATS_START);
