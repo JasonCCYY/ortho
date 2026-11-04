@@ -278,21 +278,21 @@ const SHEETS = {
   },
 
   async updateMatRow(row, d) {
-    const done = (d.done && d.done !== 'false') ? d.done : '';
+    const done = (d.done === 'true') ? '' : '未完成';
     await this.put(this.T.matRec+'!A'+row+':G'+row, [[this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
     localStorage.removeItem('ortho_matRec2');
   },
 
   async setDone(row) {
-    await this.put(this.T.matRec+'!G'+row, [['true']]);
-    localStorage.removeItem('ortho_matRec2');
-  },
-  async setUndone(row) {
     await this.put(this.T.matRec+'!G'+row, [['']]);
     localStorage.removeItem('ortho_matRec2');
   },
+  async setUndone(row) {
+    await this.put(this.T.matRec+'!G'+row, [['未完成']]);
+    localStorage.removeItem('ortho_matRec2');
+  },
   async setUndoneRows(rows) {
-    for (const row of rows) await this.put(this.T.matRec+'!G'+row, [['']]);
+    for (const row of rows) await this.put(this.T.matRec+'!G'+row, [['未完成']]);
     if (rows.length) localStorage.removeItem('ortho_matRec2');
   },
 
@@ -304,20 +304,20 @@ const SHEETS = {
       const rowMonth = rowDate.length >= 7 ? rowDate.substring(0, 7) : rowDate;
       const rowBrand = (recs[i][1]||'').trim();
       const rowProd  = (recs[i][2]||'').trim();
-      const isDone   = (recs[i][6]||'').toLowerCase() === 'true';
+      const isDone   = !(recs[i][6]||'').trim();
       if (rowMonth === month && rowBrand === brand && rowProd === product && !isDone) {
         updates.push(i + 2);
       }
     }
     for (const row of updates) {
-      await this.put(this.T.matRec+'!G'+row, [['true']]);
+      await this.put(this.T.matRec+'!G'+row, [['']]);
     }
     if (updates.length) localStorage.removeItem('ortho_matRec2');
     return updates;
   },
 
   async addMatFromSurgery(d) {
-    const row = [this._d(d.date), d.brand, d.product, d.price||'', d.qty||1, d.patient, ''];
+    const row = [this._d(d.date), d.brand, d.product, d.price||'', d.qty||1, d.patient, '未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
@@ -460,13 +460,13 @@ const SHEETS = {
   },
 
   async addMat(d) {
-    const row = [this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'門診',''];
+    const row = [this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'門診','未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this._d(this.nowDate()),brand,product,price,'1','門診',''];
+    const row = [this._d(this.nowDate()),brand,product,price,'1','門診','未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },

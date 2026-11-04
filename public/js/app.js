@@ -1355,7 +1355,7 @@ const APP = {
         Object.values(groups).sort((a,b) => this.sortBrands(a.brand,b.brand)).forEach(g => {
           const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
           const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
-          const allDone = g.rows.length > 0 && g.rows.every(r=>r.done?.toLowerCase()==='true');
+          const allDone = g.rows.length > 0 && g.rows.every(r=>!r.done?.trim());
           const hasNewManual = g.rows.some(isManualToday);
           const detailId = 'mat-det-' + (detailCtr++);
           const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
@@ -1373,7 +1373,7 @@ const APP = {
           html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
           g.rows.forEach(r => {
             const _si = APP._storeRow(r);
-            const isDone = r.done?.toLowerCase()==='true';
+            const isDone = !r.done?.trim();
             const isNewRow = isManualToday(r);
             const isManual = r.patient==='門診' || r.patient==='';
             const clickAttr = isManual ? ` onclick="APP.openDetailS('mat',${_si})" style="cursor:pointer"` : '';
@@ -1780,7 +1780,7 @@ const APP = {
     } else if(type==='mat') {
       const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
       const total=cleanP*(parseInt(r.qty)||1);
-      content = field('廠牌',r.brand)+field('產品',r.product)+field('日期',r.date)+field('單價',cleanP?'$'+cleanP.toLocaleString():'')+field('數量',r.qty)+field('總價',total?'$'+total.toLocaleString():'')+field('狀態',r.done?.toLowerCase()==='true'?'已完成':'未完成');
+      content = field('廠牌',r.brand)+field('產品',r.product)+field('日期',r.date)+field('單價',cleanP?'$'+cleanP.toLocaleString():'')+field('數量',r.qty)+field('總價',total?'$'+total.toLocaleString():'')+field('狀態',!r.done?.trim()?'已完成':'未完成');
     } else if(type==='selfpay') {
       content = field('廠牌',r.brand)+field('產品',r.product)+field('類型',r.type)+field('單價',r.price?'$'+Number(String(r.price).replace(/,/g,'')).toLocaleString():'')+field('醫院',r.hospital);
     } else if(type==='opcode') {
@@ -1863,7 +1863,7 @@ const APP = {
       document.getElementById('em-date').value    = r.date||'';
       document.getElementById('em-price').value   = this.cleanNum(r.price);
       document.getElementById('em-qty').value     = r.qty||'1';
-      const isDone = r.done?.toLowerCase()==='true';
+      const isDone = !r.done?.trim();
       document.getElementById('em-done-val').value = isDone?'true':'false';
       document.getElementById('em-done-y').classList.toggle('on',isDone);
       document.getElementById('em-done-n').classList.toggle('on',!isDone);
