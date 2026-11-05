@@ -662,10 +662,22 @@ const APP = {
       let implant = '';
       if (p.implants && p.implants.length) {
         const allProds = SHEETS.matProds || [];
+        const abbrevs = SHEETS.boneAbbrevs || {};
+        const sortedAbbrevs = Object.entries(abbrevs).sort((a, b) => b[0].length - a[0].length);
         implant = p.implants.map(impl => {
-          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
-          const text = qm ? qm[1].trim() : impl.trim();
-          const qty  = qm ? parseInt(qm[2]) : 1;
+          // Try abbreviation match first (handles "I*2" where "I*" is an abbreviation)
+          let text, qty = 1;
+          let resolved = false;
+          for (const [abbr, prod] of sortedAbbrevs) {
+            const esc = abbr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const am = impl.trim().match(new RegExp(`^${esc}\\s*(?:[×*]\\s*(\\d+))?$`, 'i'));
+            if (am) { text = prod; qty = am[1] ? parseInt(am[1]) : 1; resolved = true; break; }
+          }
+          if (!resolved) {
+            const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+            text = qm ? qm[1].trim() : impl.trim();
+            qty  = qm ? parseInt(qm[2]) : 1;
+          }
           const m = allProds.find(c => c.product.toLowerCase() === text.toLowerCase())
                  || allProds.find(c => (c.brand+' '+c.product).toLowerCase() === text.toLowerCase())
                  || allProds.find(c => c.surgRecord && c.surgRecord.toLowerCase() === text.toLowerCase());
