@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
   try {
-    const { images, opCatsByType, boneItems, abbrevList, brandProducts } = req.body || {};
+    const { images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts } = req.body || {};
     console.log('[parse-image] images count:', images?.length);
     if (!images?.length) return res.status(400).json({ ok:false, error:'No images provided' });
 
@@ -84,18 +84,23 @@ module.exports = async (req, res) => {
 3. date_roc: 左上方「手術日期」民國年數字（如1151118）
 4. codes: 「手術批價碼:」代碼陣列，每組只取開頭純數字（64087-64087C→64087），多組以-/、/,分隔；無則[]
 5. note: 「備註:」後的完整文字
-6. opName: ${opCatsByType && Object.keys(opCatsByType).length ? `從術式說明推斷手術類別，從清單選最接近名稱；查無則從圖片自行填入（VP=vertebroplasty, KP=kyphoplasty）
-   類別→名稱清單:
-${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : '從術式說明填入手術名稱，VP=vertebroplasty, KP=kyphoplasty；無法辨識則null'}
-7. location: 手術部位。四肢/關節→Rt/Lt/Bilateral；脊椎手術→椎節（如 L3、T12、L3-L4）；無法辨識→null
-8. implants: 從備註辨識骨材/生長因子，對應完整名稱後回傳陣列；無則[]${boneItems && boneItems.length ? `
-   「縮寫*N」→「完整名 ×N」${abbrevList && abbrevList.length ? `；縮寫: ${abbrevList.join('、')}` : ''}
-   清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
-   若備註只寫廠牌（如「AO」），結合手術context推斷產品（AO+Radius→「AO Radius」），加入implants；查無則只用廠牌名
+6. opName: 查表流程：手術批價碼 → 以下代碼對照表查出類型 → 從類型清單選最接近名稱；若代碼查無類型或清單無符合，再從批價碼說明文字與備註推斷（VP=vertebroplasty, KP=kyphoplasty）；完全無法判斷則null${codeTypes && Object.keys(codeTypes).length ? `
+   代碼→類型: ${JSON.stringify(codeTypes)}` : ''}${opCatsByType && Object.keys(opCatsByType).length ? `
+   類型→名稱清單:
+${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
+7. location: 手術部位。脊椎手術→椎節（如L3、T12、L3-L4）；四肢/關節→Rt/Lt/Bilateral；無法辨識→null
+8. implants: 從備註辨識骨材/生長因子及廠牌，回傳陣列；無則[]${boneItems && boneItems.length ? `
+   骨材縮寫：「縮寫*N」→「完整名 ×N」${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
+   骨材清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
+   廠牌：備註只有廠牌時，結合手術context推斷產品後加入implants（如「AO」+Radius→「AO Radius」），查無則只用廠牌名
    廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
 
+備註解析範例：
+  「L3 VP; depuy (PASS)」→ location=L3、opName=vertebroplasty、implants=["Depuy"]
+  「Rt radius; AO」→ location=Rt、opName=Forearm、implants=["AO"]
+
 只回傳JSON，不加說明：
-{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"Rt或null","implants":[]}]}
+{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"L3或Rt或null","implants":["Depuy","Iconix ×2"]}]}
 若無黃色框：{"patients":[]}` });
 
     console.log('[parse-image] calling Gemini, parts:', parts.length);
