@@ -73,7 +73,7 @@ module.exports = async (req, res) => {
 6. opName: ${opCatsByType && Object.keys(opCatsByType).length ? `從術式說明推斷手術類別，從清單選最接近名稱；查無則從圖片自行填入（VP=vertebroplasty, KP=kyphoplasty）
    類別→名稱清單:
 ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : '從術式說明填入手術名稱，VP=vertebroplasty, KP=kyphoplasty；無法辨識則null'}
-7. location: 手術部位，限填 Rt/Lt/Bilateral/null
+7. location: 手術部位。四肢/關節→Rt/Lt/Bilateral；脊椎手術→椎節（如 L3、T12、L3-L4）；無法辨識→null
 8. implants: 從備註辨識骨材/生長因子，對應完整名稱後回傳陣列；無則[]${boneItems && boneItems.length ? `
    「縮寫*N」→「完整名 ×N」${abbrevList && abbrevList.length ? `；縮寫: ${abbrevList.join('、')}` : ''}
    清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
