@@ -61,46 +61,28 @@ module.exports = async (req, res) => {
       parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
     }
 
-    parts.push({ text: `這是台灣醫院手術排程系統（ORRZ301）截圖。
-畫面中有黃色背景彈出框，每個代表一位病人的手術資料。
-【重要】病患姓名、手術代碼、備註等資料只從黃色框內讀取，背景白色欄位、粉紅色列、其他欄位一律忽略，即使背景有人名也不可讀取。
-【例外】手術日期從畫面左上方的「手術日期」欄位讀取（該欄位在所有黃色框之外）。
+    parts.push({ text: `台灣醫院手術排程系統（ORRZ301）截圖。黃色彈出框=一位病人的手術資料，所有欄位只從黃色框內讀取，唯一例外是左上方「手術日期」欄位。
 
-從圖片擷取以下資料：
+擷取每個黃色框的資料：
 
-1. 病患: 黃色框內「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字；姓名通常為2至4個中文字，請逐字仔細讀取，不可遺漏任何一個字。
-   【注意】姓名只能來自黃色框內「病患:」欄位，絕對不可使用框外背景的任何名字。
+1. mrn: 「病患:」後的純數字病歷號
+2. name: 「病患:」後的姓名（2-4個中文字，逐字讀取勿遺漏）
+3. date_roc: 左上方「手術日期」民國年數字（如1151118）
+4. codes: 「手術批價碼:」代碼陣列，每組只取開頭純數字（64087-64087C→64087），多組以-/、/,分隔；無則[]
+5. note: 「備註:」後的完整文字
+6. opName: ${opCatsByType && Object.keys(opCatsByType).length ? `從術式說明推斷手術類別，從清單選最接近名稱；查無則從圖片自行填入（VP=vertebroplasty, KP=kyphoplasty）
+   類別→名稱清單:
+${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : '從術式說明填入手術名稱，VP=vertebroplasty, KP=kyphoplasty；無法辨識則null'}
+7. location: 手術部位，限填 Rt/Lt/Bilateral/null
+8. implants: 從備註辨識骨材/生長因子，對應完整名稱後回傳陣列；無則[]${boneItems && boneItems.length ? `
+   「縮寫*N」→「完整名 ×N」${abbrevList && abbrevList.length ? `；縮寫: ${abbrevList.join('、')}` : ''}
+   清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
+   若備註只寫廠牌（如「AO」），結合手術context推斷產品（AO+Radius→「AO Radius」），加入implants；查無則只用廠牌名
+   廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
 
-2. 日期: 畫面左上方「手術日期」欄位的民國年數字（如1151118代表民國115年11月18日 = 2026/11/18），此欄位在黃色框之外仍須讀取
-
-3. 手術批價碼: 「手術批價碼:」後面的代碼
-   - 代碼格式範例：「64087-64087C 腱鞘囊腫摘出術」→ 只取「64087」（開頭的純數字部分）
-   - 多組代碼用「-」或「、」或「,」分隔，例如「64015-64032」→ 取「64015」和「64032」
-   - 每組只取開頭的純數字，忽略後面的英文字母和中文說明
-   - 若無批價碼則回傳空陣列
-
-4. 備註: 「備註:」後面的完整文字（不包含「備註:」本身）
-${opCatsByType && Object.keys(opCatsByType).length ? `
-5. 手術名稱: 從批價碼說明文字與圖片術式描述判斷手術類別，再從以下清單選最接近的名稱；若無法對應則從圖片文字自行判斷並填入
-   常見縮寫：VP=vertebroplasty（椎體成形術）、KP=kyphoplasty
-   類別→手術名稱清單:
-${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
-
-6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
-   - Rt = 右側, Lt = 左側, Bilateral = 雙側
-${boneItems && boneItems.length ? `
-7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列${abbrevList && abbrevList.length ? `
-   縮寫對照（格式 縮寫=完整名）：${abbrevList.join('、')}` : ''}
-   數量解析：若備註為「縮寫*數字」如「I*2」→ 回傳「完整名稱 ×數字」（例：「Iconix ×2」）；若無數字則不加 ×N
-   清單: ${boneItems.join('、')}` : ''}
-${brandProducts && Object.keys(brandProducts).length ? `
-8. 廠牌產品推斷: 若備註只寫廠牌（如「AO」），可結合手術名稱context（如Radius fracture→推斷AO Radius）從以下廠牌產品對照中回傳「廠牌 產品名稱」字串；若無法推斷則只回傳廠牌名稱
-   廠牌產品對照（JSON）: ${JSON.stringify(brandProducts)}` : ''}
-
-只回傳JSON，不加任何說明文字：
-{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null","location":"Rt或Lt或Bilateral或null","implants":["骨材1","骨材2"]}]}
-
-若無黃色框則回傳：{"patients":[]}` });
+只回傳JSON，不加說明：
+{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"Rt或null","implants":[]}]}
+若無黃色框：{"patients":[]}` });
 
     console.log('[parse-image] calling Gemini, parts:', parts.length);
     const result = await geminiRequest({ contents:[{ parts }], generationConfig:{ temperature:0.1 } });
