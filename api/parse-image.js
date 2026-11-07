@@ -90,7 +90,7 @@ module.exports = async (req, res) => {
 ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
 7. location: 手術部位。脊椎手術→椎節（如L3、T12、L3-L4）；四肢/關節→Rt/Lt/Bilateral；無法辨識→null
 8. implants: 從備註辨識骨材/生長因子及廠牌，回傳陣列；無則[]${boneItems && boneItems.length ? `
-   骨材縮寫：「縮寫*N」→「完整名 ×N」${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
+   骨材縮寫：「縮寫*N」→「完整名 ×N」；縮寫前若有多餘的;、,、*、空格等分隔符應忽略（如「;*I*2」=「I*2」=「完整名 ×2」）${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
    骨材清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
    廠牌：備註只有廠牌時，結合手術context推斷產品後加入implants（如「AO」+Radius→「AO Radius」），查無則只用廠牌名
    廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
