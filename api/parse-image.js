@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
   try {
-    const { images, opNames, boneItems, abbrevList, brandProducts } = req.body || {};
+    const { images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts } = req.body || {};
     console.log('[parse-image] images count:', images?.length);
     if (!images?.length) return res.status(400).json({ ok:false, error:'No images provided' });
 
@@ -80,10 +80,15 @@ module.exports = async (req, res) => {
    - 若無批價碼則回傳空陣列
 
 4. 備註: 「備註:」後面的完整文字（不包含「備註:」本身）
-${opNames && opNames.length ? `
-5. 手術名稱: 從圖片文字辨識手術名稱，從以下清單選最接近的一個，無法辨識則回傳null
-   常見縮寫：VP=vertebroplasty（椎體成形術）、KP=kyphoplasty、PKP=percutaneous kyphoplasty
-   清單: ${opNames.join('、')}` : ''}
+${opCatsByType && Object.keys(opCatsByType).length ? `
+5. 手術名稱: 步驟如下
+   a. 從圖片讀出批價碼（即第3步取得的代碼）
+   b. 用以下「批價碼→類別」對照表查出類別：${JSON.stringify(codeTypes||{})}
+   c. 從以下「類別→手術名稱清單」中，找該類別對應的清單，選出最接近的一個手術名稱
+   d. 若批價碼查不到類別，或清單中找不到合適項目，則從圖片文字（如術式說明）自行判斷並填入
+   常見縮寫：VP=vertebroplasty（椎體成形術）、KP=kyphoplasty
+   類別→手術名稱清單:
+${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
 
 6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
    - Rt = 右側, Lt = 左側, Bilateral = 雙側

@@ -485,7 +485,6 @@ const APP = {
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
-      const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
       const boneCatsAll = SHEETS.boneCats || [];
       const boneItems = [
         ...boneCatsAll.map(c => c.product),
@@ -498,11 +497,25 @@ const APP = {
         if (!brandProducts[c.brand]) brandProducts[c.brand] = [];
         if (!brandProducts[c.brand].includes(c.product)) brandProducts[c.brand].push(c.product);
       });
-      const res = await fetch('/api/parse-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, opNames, boneItems, abbrevList, brandProducts }),
+      // OP分類 by type，供 AI 依代碼類別篩選手術名稱
+      const opCatsByType = {};
+      (SHEETS.opCats||[]).forEach(c => {
+        if (!c.type || !c.name) return;
+        if (!opCatsByType[c.type]) opCatsByType[c.type] = [];
+        opCatsByType[c.type].push(c.name);
       });
+      // 代碼→類別 對照表，送給 AI 做查詢
+      const preloadedCodes = await SHEETS.loadOpCodes();
+      const codeTypes = {};
+      preloadedCodes.forEach(c => { if(c.code && c.type) codeTypes[String(c.code).trim()] = c.type; });
+
+      const [res] = await Promise.all([
+        fetch('/api/parse-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts }),
+        }),
+      ]);
       console.log('[scan] response status:', res.status);
       const data = await res.json();
       console.log('[scan] response data:', JSON.stringify(data).substring(0, 500));
@@ -516,11 +529,9 @@ const APP = {
 
       document.getElementById('scan-status').textContent = `找到 ${patients.length} 筆紀錄`;
 
-      // 載入代碼表（用於比對批價碼）
-      const opCodes = await SHEETS.loadOpCodes();
-      // 只建立中正院區的代碼對照表
+      // 建立中正院區的代碼對照表（已在上方預載）
       const codeMap = {};
-      opCodes.filter(c => c.area === '中正').forEach(c => {
+      preloadedCodes.filter(c => c.area === '中正').forEach(c => {
         codeMap[String(c.code).trim()] = c;
       });
 
