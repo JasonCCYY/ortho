@@ -79,12 +79,12 @@ module.exports = async (req, res) => {
 
 擷取該黃色框的以下欄位（不確定來源則填null/[]）：
 
-1. mrn: 「病患:」後的純數字病歷號
-2. name: 「病患:」後的姓名（2-4個中文字，逐字讀取勿遺漏）
-3. date_roc: 左上方「手術日期」民國年數字（如1151118）
-4. codes: 「手術批價碼:」代碼陣列，每組只取開頭純數字（64087-64087C→64087），多組以-/、/,分隔；無則[]
-5. note: 「備註:」後的完整文字
-6. opName: 查表流程：手術批價碼 → 以下代碼對照表查出類型 → 從類型清單選最接近名稱；若代碼查無類型或清單無符合，再從批價碼說明文字與備註推斷（VP=vertebroplasty, KP=kyphoplasty）；完全無法判斷則null${codeTypes && Object.keys(codeTypes).length ? `
+1. mrn: 「病患:」標籤後的純數字（通常7-10位，含前導零，如0000277662）
+2. name: 「病患:」標籤後的姓名（2-4個中文字，逐字讀取勿遺漏）
+3. date_roc: 左上方「手術日期」民國年數字（如1151120）
+4. codes: 「手術批價碼:」標籤後的代碼陣列。手術代碼固定5位純數字（如64286、64087），每組只取開頭5位數字（64286-關節鏡下旋轉肌→64286）；多組以-/、/,分隔；病歷號不是代碼；無則[]
+5. note: 「備註:」標籤後的完整文字
+6. opName: 查表流程：手術批價碼（5位數）→ 以下代碼對照表查出類型 → 從類型清單選最接近名稱；若代碼查無類型或清單無符合，再從「手術批價碼:」的說明文字推斷（VP=vertebroplasty, KP=kyphoplasty）；不可用背景欄位文字；完全無法判斷則null${codeTypes && Object.keys(codeTypes).length ? `
    代碼→類型: ${JSON.stringify(codeTypes)}` : ''}${opCatsByType && Object.keys(opCatsByType).length ? `
    類型→名稱清單:
 ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
