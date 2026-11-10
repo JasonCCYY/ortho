@@ -125,12 +125,13 @@ const SHEETS = {
             iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9),
             iK=ci(['代碼'],10);
       const rows = await this.read(this.T.op, 'A2:K500');
-      return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
-        _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
-        clinicId:r[iCL]||'', name:r[iN]||'',
-        type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
-        implant:r[iI]||'', note:r[iNt]||'', codes:r[iK]||''
-      }));
+      return rows.reduce((acc,r,i)=>{
+        if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
+          clinicId:r[iCL]||'', name:r[iN]||'',
+          type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
+          implant:r[iI]||'', note:r[iNt]||'', codes:r[iK]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('op', load);
   },
@@ -145,12 +146,13 @@ const SHEETS = {
             iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),
             iNt=ci(['備註'],9),iK=ci(['代碼'],10);
       const rows = await this.read(this.T.track, 'A2:K500');
-      return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
-        _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
-        clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
-        opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
-        note:r[iNt]||'', codes:r[iK]||''
-      }));
+      return rows.reduce((acc,r,i)=>{
+        if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
+          clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
+          opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
+          note:r[iNt]||'', codes:r[iK]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('track', load);
   },
