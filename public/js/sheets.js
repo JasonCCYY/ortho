@@ -160,10 +160,11 @@ const SHEETS = {
   async loadMatRecords() {
     const load = async () => {
       const rows = await this.read(this.T.matRec, 'A2:G500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
-        price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i)=>{
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
+          price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||'' });
+        return acc;
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('matRec2', load);
   },
@@ -174,10 +175,12 @@ const SHEETS = {
       if (!rows.length) return [];
       // 自動偵測：A欄若是 itemId 格式（如 A1、Ru1）則有 id 欄，否則直接從廠牌開始
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
-      return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
-        ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'', surgRecord:r[7]||'' }
-        : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'', surgRecord:r[6]||'' }
-      );
+      return rows.reduce((acc,r,i)=>{
+        if(hasId ? r[1] : r[0]) acc.push(hasId
+          ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'', surgRecord:r[7]||'' }
+          : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'', surgRecord:r[6]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('matProd', load);
   },
@@ -185,9 +188,10 @@ const SHEETS = {
   async loadOpCodes() {
     const load = async () => {
       const rows = await this.read(this.T.opCode, 'A2:F200');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, code:r[0]||'', name:r[1]||'', price:r[2]||'', area:r[3]||'', type:r[4]||'', itemId:r[5]||''
-      }));
+      return rows.reduce((acc,r,i)=>{
+        if(r[0]) acc.push({ _row:i+2, code:r[0]||'', name:r[1]||'', price:r[2]||'', area:r[3]||'', type:r[4]||'', itemId:r[5]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('opCode', load);
   },
@@ -195,10 +199,11 @@ const SHEETS = {
   async loadCodeRecords() {
     const load = async () => {
       const rows = await this.read(this.T.codeRec, 'A2:H500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-        area:r[4]||'', qty:r[5]||'', type:r[6]||'', patient:r[7]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i)=>{
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
+          area:r[4]||'', qty:r[5]||'', type:r[6]||'', patient:r[7]||'' });
+        return acc;
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
   },
@@ -207,10 +212,11 @@ const SHEETS = {
     const load = async () => {
       // A=月份,B=醫材,C=中正,D=門診,E=右昌,F=預估
       const rows = await this.read(this.T.estimate, 'A2:F50');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, month:r[0]||'', material:r[1]||'', zhongzheng:r[2]||'',
-        clinic:r[3]||'', youchang:r[4]||'', estimate:r[5]||''
-      }));
+      return rows.reduce((acc,r,i)=>{
+        if(r[0]) acc.push({ _row:i+2, month:r[0]||'', material:r[1]||'', zhongzheng:r[2]||'',
+          clinic:r[3]||'', youchang:r[4]||'', estimate:r[5]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('estimate', load);
   },
@@ -221,10 +227,12 @@ const SHEETS = {
       if (!rows.length) return [];
       // A欄若是 itemId 格式則跳過，否則直接讀產品名
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
-      return rows.filter(r => hasId ? r[1] : r[0]).map((r, i) => hasId
-        ? { _row:i+2, itemId:r[0]||'', name:r[1]||'', price:r[2]||'' }
-        : { _row:i+2, itemId:'',       name:r[0]||'', price:r[1]||'' }
-      );
+      return rows.reduce((acc,r,i)=>{
+        if(hasId ? r[1] : r[0]) acc.push(hasId
+          ? { _row:i+2, itemId:r[0]||'', name:r[1]||'', price:r[2]||'' }
+          : { _row:i+2, itemId:'',       name:r[0]||'', price:r[1]||'' });
+        return acc;
+      },[]);
     };
     return this.cached('clinicP', load);
   },
@@ -233,10 +241,11 @@ const SHEETS = {
     // 門診: A=日期,B=產品,C=單價,D=數量
     const load = async () => {
       const rows = await this.read(this.T.clinic, 'A2:D500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', product:r[1]||'',
-        price:r[2]||'', qty:r[3]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i)=>{
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', product:r[1]||'',
+          price:r[2]||'', qty:r[3]||'' });
+        return acc;
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('clinic2', load);
   },
