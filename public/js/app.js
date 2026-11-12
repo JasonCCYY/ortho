@@ -1767,7 +1767,7 @@ const APP = {
           <span style="min-width:72px;font-size:.82rem;color:var(--muted);flex-shrink:0">${r.date||''}</span>
           <span class="badge badge-${r.type}" style="flex-shrink:0">${r.type||'-'}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem">${r.opName||''}</span>
-          <span style="font-size:.78rem;color:var(--accent);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0">${r.implant||''}</span>
+          <span style="font-size:.82rem;color:var(--muted);min-width:36px;text-align:right;flex-shrink:0">${r.location||''}</span>
           ${trackBadge}
         </div>`;
       });
