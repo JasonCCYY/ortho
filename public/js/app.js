@@ -1927,9 +1927,10 @@ const APP = {
       const qm = part.match(/^(.+?)\s+×(\d+)$/);
       const text = qm ? qm[1].trim() : part;
       const qty  = qm ? parseInt(qm[2]) : 1;
-      const byBP = boneCats.find(c=>(c.brand+' '+c.product)===text);
-      const byP  = boneCats.find(c=>c.product===text);
-      const byB  = boneCats.find(c=>c.brand===text);
+      const tl   = text.toLowerCase();
+      const byBP = boneCats.find(c=>(c.brand+' '+c.product).toLowerCase()===tl);
+      const byP  = boneCats.find(c=>c.product.toLowerCase()===tl);
+      const byB  = boneCats.find(c=>c.brand.toLowerCase()===tl);
       const m = byBP || byP || byB;
       if (m) return { brand:m.brand, product:m.product, qty };
       return { brand:'', product:text, qty };

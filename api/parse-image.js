@@ -88,7 +88,7 @@ ${opNames && opNames.length ? `
 ${boneItems && boneItems.length ? `
 7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列${abbrevList && abbrevList.length ? `
    縮寫對照（格式 縮寫=完整名）：${abbrevList.join('、')}` : ''}
-   數量解析：若備註為「縮寫*數字」如「I*2」→ 回傳「完整名稱 ×數字」（例：「Iconix ×2」）；若無數字則不加 ×N
+   數量解析：若備註為「縮寫*數字」如「I*2」→ 回傳「完整名稱 ×數字」（例：「Iconix ×2」）；若無數字則不加 ×N；縮寫不分大小寫（OCR常將大寫I誤辨為小寫i或l，如「i*2」=「I*2」）
    清單: ${boneItems.join('、')}` : ''}
 ${brandProducts && Object.keys(brandProducts).length ? `
 8. 廠牌產品推斷: 若備註只寫廠牌（如「AO」），可結合手術名稱context（如Radius fracture→推斷AO Radius）從以下廠牌產品對照中回傳「廠牌 產品名稱」字串；若無法推斷則只回傳廠牌名稱
