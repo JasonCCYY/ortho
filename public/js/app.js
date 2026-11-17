@@ -6,6 +6,8 @@ const APP = {
   // material slide index: 0=matRec,1=selfPay,2=opCode,3=codeRec,4=estimate
   matSlideIdx: 0,
   MAT_SUBS: ['matRec','selfPay','opCode','codeRec','estimate'],
+  CLINIC_REC_ORDER: ['外泌體','PRP','增生','玻尿酸','震波','門診護具'],
+  CLINIC_SELF_ORDER: ['門診護具','外泌體','PRP','增生','玻尿酸','震波'],
   _swipeStartX: 0, _swipeStartY: 0, _swiping: false,
 
   // ── Init ──
@@ -53,6 +55,7 @@ const APP = {
   // ── Helpers ──
   fmt(v) { return v ? Number(String(v).replace(/,/g,'')).toLocaleString() : ''; },
   fmtP(v) { const n = this.fmt(v); return n ? '$'+n : ''; },
+  _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
   uid() { return Math.random().toString(36).substring(2,10); },
   nowMonth() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`; },
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
@@ -810,7 +813,7 @@ const APP = {
         html += `<div class="list-month-hdr" style="top:0">手術紀錄（${opHits.length}筆）</div>`;
         opHits.forEach(r => {
           const _si = APP._storeRow(r);
-          html += `<div class="list-row" onclick="APP._detailFromSearch=true;APP.openDetailS('sx',${_si})" style="cursor:pointer">
+          html += `<div class="list-row" onclick="APP.openDetailS('sx',${_si},true)" style="cursor:pointer">
             <span class="dot-ph"></span>
             <span class="col-product">${r.name} <span style="color:var(--muted);font-size:.82rem">· ${r.opName||''}</span></span>
             <span class="col-price">${r.date.substring(5)||''}</span>
@@ -821,7 +824,7 @@ const APP = {
         html += `<div class="list-month-hdr" style="top:0">追蹤（${trackHits.length}筆）</div>`;
         trackHits.forEach(r => {
           const _si = APP._storeRow(r);
-          html += `<div class="list-row" onclick="APP._detailFromSearch=true;APP.openDetailS('track',${_si})" style="cursor:pointer">
+          html += `<div class="list-row" onclick="APP.openDetailS('track',${_si},true)" style="cursor:pointer">
             <span class="dot-ph"></span>
             <span class="col-product">${r.name} <span style="color:var(--muted);font-size:.82rem">· ${r.opName||''}</span></span>
             <span class="col-price" style="color:var(--txt2)">${r.date.substring(0,7)||''}</span>
@@ -833,7 +836,7 @@ const APP = {
         matHits.forEach(r => {
           const _si = APP._storeRow(r);
           const p = parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          html += `<div class="list-row" onclick="APP._detailFromSearch=true;APP.openDetailS('mat',${_si})" style="cursor:pointer">
+          html += `<div class="list-row" onclick="APP.openDetailS('mat',${_si},true)" style="cursor:pointer">
             <span class="col-brand">${r.brand}</span>
             <span class="col-product">${r.product}</span>
             <span class="col-price">${p?'$'+p.toLocaleString():''}</span>
@@ -845,7 +848,7 @@ const APP = {
         codeHits.forEach(r => {
           const _si = APP._storeRow(r);
           const p = parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          html += `<div class="list-row" onclick="APP._detailFromSearch=true;APP.openDetailS('coderec',${_si})" style="cursor:pointer">
+          html += `<div class="list-row" onclick="APP.openDetailS('coderec',${_si},true)" style="cursor:pointer">
             <span class="col-product">${r.name}</span>
             <span class="col-code">${r.code}</span>
             <span class="col-price">${p?'$'+p.toLocaleString():''}</span>
@@ -857,7 +860,7 @@ const APP = {
         clinicHits.forEach(r => {
           const _si = APP._storeRow(r);
           const p = parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          html += `<div class="list-row" onclick="APP._detailFromSearch=true;APP.openDetailS('clinic',${_si})" style="cursor:pointer">
+          html += `<div class="list-row" onclick="APP.openDetailS('clinic',${_si},true)" style="cursor:pointer">
             <span class="col-product">${r.product}</span>
             <span class="col-qty">${r.qty}</span>
             <span class="col-price">${p?'$'+p.toLocaleString():''}</span>
@@ -919,12 +922,12 @@ const APP = {
         const prefix = missingData ? '<span style="color:var(--red);font-weight:700">*</span>' : (isYC ? '<span style="color:var(--muted)">．</span>' : '');
         rows += `<tr class="sx-data-row" onclick="APP.openDetailS('sx',${_si})">
           <td class="sx-date">${day}</td>
-          <td class="sx-name">${prefix}${r.name}</td>
-          <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
-          <td class="sx-opname">${r.opName}</td>
-          <td class="sx-loc" title="${r.location}">${r.location}</td>
-          <td class="sx-implant">${r.implant}</td>
-          <td class="sx-note">${r.note}</td>
+          <td class="sx-name">${prefix}${this._esc(r.name)}</td>
+          <td><span class="badge badge-${this._esc(r.type)}">${this._esc(r.type)||'-'}</span></td>
+          <td class="sx-opname">${this._esc(r.opName)}</td>
+          <td class="sx-loc" title="${this._esc(r.location)}">${this._esc(r.location)}</td>
+          <td class="sx-implant">${this._esc(r.implant)}</td>
+          <td class="sx-note">${this._esc(r.note)}</td>
         </tr>`;
       });
       el.innerHTML = rows;
@@ -1085,9 +1088,11 @@ const APP = {
         const td = new Date(sy, sm - 1 - i, 1);
         months12.push(`${td.getFullYear()}/${String(td.getMonth()+1).padStart(2,'0')}`);
       }
+      const monthCountMap = {};
+      ops.forEach(r => { if(r.date) { const k=r.date.substring(0,7); monthCountMap[k]=(monthCountMap[k]||0)+1; } });
       const monthlyCounts = months12.map(m => ({
         label: m.substring(5),
-        count: ops.filter(r => r.date && r.date.startsWith(m)).length,
+        count: monthCountMap[m] || 0,
         isCur: m === this._statsMonth,
       }));
       const maxCnt = Math.max(...monthlyCounts.map(x => x.count), 1);
@@ -1419,17 +1424,15 @@ const APP = {
       // Build product order map for sorting records
       // Fixed sort order for clinic records display
       // Self-pay items use SELF_ORDER; records use REC_ORDER
-      const REC_ORDER = ['外泌體','PRP','增生','玻尿酸','震波','門診護具'];
       const prodOrder = {};
-      REC_ORDER.forEach((name,i) => { prodOrder[name] = i; });
-      products.forEach((p) => { if(!(p.name in prodOrder)) prodOrder[p.name] = REC_ORDER.length + Object.keys(prodOrder).length; });
+      this.CLINIC_REC_ORDER.forEach((name,i) => { prodOrder[name] = i; });
+      products.forEach((p) => { if(!(p.name in prodOrder)) prodOrder[p.name] = this.CLINIC_REC_ORDER.length + Object.keys(prodOrder).length; });
 
       let html = '';
       // Self-pay price list
       html += `<div class="clinic-section-hdr">自費項目</div>`;
-      const SELF_ORDER = ['門診護具','外泌體','PRP','增生','玻尿酸','震波'];
       const sortedProds = [...products].sort((a,b) => {
-        const ai = SELF_ORDER.indexOf(a.name), bi = SELF_ORDER.indexOf(b.name);
+        const ai = this.CLINIC_SELF_ORDER.indexOf(a.name), bi = this.CLINIC_SELF_ORDER.indexOf(b.name);
         const an = ai<0 ? 999+products.indexOf(a) : ai;
         const bn = bi<0 ? 999+products.indexOf(b) : bi;
         return an - bn;
@@ -1498,9 +1501,10 @@ const APP = {
   },
 
   // ── Detail Modal via store index (avoids HTML encoding issues) ──
-  openDetailS(type, idx) {
+  openDetailS(type, idx, fromSearch) {
     const r = this._getRow(idx);
     if(!r) return;
+    this._detailFromSearch = !!fromSearch;
     this._detailType = type;
     this._detailData = r;
     this._renderDetail(type, r);
@@ -1764,17 +1768,16 @@ const APP = {
       // Sync bone chips → 骨材記錄
       if (d.implant) {
         const matProds = await SHEETS.loadMatProducts();
-        const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []);
-        for (const s of boneSels) {
-          if (!s.product) continue;
+        const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []).filter(s => s.product);
+        await Promise.all(boneSels.map(s => {
           const prod = matProds.find(p => p.brand === s.brand && p.product === s.product)
                     || matProds.find(p => p.product === s.product);
-          await SHEETS.addMatFromSurgery({
+          this._markAddedToday('mat', d.date+'|'+(s.brand||s.product)+'|'+s.product+'|'+d.name);
+          return SHEETS.addMatFromSurgery({
             date: d.date, brand: s.brand || s.product, product: s.product,
             price: prod?.price || '', qty: s.qty || 1, patient: d.name
           });
-          this._markAddedToday('mat', d.date+'|'+(s.brand||s.product)+'|'+s.product+'|'+d.name);
-        }
+        }));
       }
       this.closeModal('modal-op');
       this.toast('✅ 已儲存');
@@ -1854,18 +1857,20 @@ const APP = {
     const [opCodes, recs] = await Promise.all([SHEETS.loadOpCodes(), SHEETS.read(SHEETS.T.codeRec,'A2:H500')]);
     const typeMap = {};
     opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type||''; });
-    let updated = 0;
+    const updates = [];
     for(let i=0;i<recs.length;i++){
-      const row=recs[i]; if(!row[0]) continue;
-      if(row[6]) continue; // already has type
+      const row=recs[i]; if(!row[0]||row[6]) continue;
       const code=(row[3]||'').trim();
       const t = typeMap[code] || typeMap[code.replace('*','')] || '';
-      if(!t) continue;
-      await SHEETS.put(SHEETS.T.codeRec+'!G'+(i+2), [[t]]);
-      updated++;
+      if(t) updates.push({ range: `${SHEETS.T.codeRec}!G${i+2}`, values: [[t]] });
     }
-    localStorage.removeItem('ortho_codeRec2');
-    this.toast(`✅ 已回填 ${updated} 筆類型`);
+    if(updates.length) {
+      const url = `${SHEETS.BASE}/${SHEETS.ID}/values:batchUpdate`;
+      await fetch(url, { method:'POST', headers:{...SHEETS.hdrs(),'Content-Type':'application/json'},
+        body: JSON.stringify({ valueInputOption:'USER_ENTERED', data: updates }) });
+      localStorage.removeItem('ortho_codeRec2');
+    }
+    this.toast(`✅ 已回填 ${updates.length} 筆類型`);
   },
   async saveCli() {
     if(this._savingCli) return; this._savingCli=true;
@@ -2068,7 +2073,7 @@ const APP = {
   },
   // Surgery modal chips
   selectArea(el,v){
-    document.querySelectorAll('[onclick*="selectArea"]').forEach(c=>c.classList.remove('on'));
+    el.closest('.chip-row').querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
     el.classList.add('on');
     document.getElementById('s-area-val').value=v;
     const wrap=document.getElementById('s-clinicid-wrap');
@@ -2076,7 +2081,7 @@ const APP = {
     if(v!=='右昌') { const f=document.getElementById('s-clinicid'); if(f) f.value=''; }
   },
   selectType(el,type){
-    document.querySelectorAll('[onclick*="selectType"]').forEach(c=>c.classList.remove('on'));el.classList.add('on');
+    el.closest('.chip-row').querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');
     document.getElementById('s-type-val').value=type;
     this.updateOpDropdowns(type);
   },
