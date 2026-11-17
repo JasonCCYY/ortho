@@ -50,8 +50,9 @@ const APP = {
     try { this.switchTab('surgery', false); } catch(e) { console.error('[APP] switchTab:', e); }
     console.log('[APP] onAuthSuccess done');
     Promise.all([SHEETS.loadTrackRecords(), SHEETS.loadClinicRecords()]).catch(()=>{});
+    this._todaySet = new Set();
     SHEETS.loadTodayRecs().then(recs => {
-      recs.forEach(r => this._markLocalOnly(r.type, r.id));
+      recs.forEach(r => this._todaySet.add(r.type + ':' + r.id));
     }).catch(()=>{});
   },
 
@@ -64,22 +65,13 @@ const APP = {
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
   todayISO() { return new Date().toISOString().split('T')[0]; },
 
+  _todaySet: new Set(),
   _markAddedToday(type, fp) {
-    this._markLocalOnly(type, fp);
+    this._todaySet.add(type + ':' + fp);
     SHEETS.addNewRec(type, fp);
   },
-  _markLocalOnly(type, fp) {
-    try {
-      const k = 'ortho_new_' + this.today();
-      const arr = JSON.parse(localStorage.getItem(k)||'[]');
-      if(!arr.includes(type+':'+fp)) { arr.push(type+':'+fp); localStorage.setItem(k, JSON.stringify(arr)); }
-      for(const key of Object.keys(localStorage))
-        if(key.startsWith('ortho_new_') && key!==k) localStorage.removeItem(key);
-    } catch(e){}
-  },
   _isAddedToday(type, fp) {
-    try { return JSON.parse(localStorage.getItem('ortho_new_'+this.today())||'[]').includes(type+':'+fp); }
-    catch(e){ return false; }
+    return this._todaySet.has(type + ':' + fp);
   },
 
   // 把各種日期格式轉成 YYYY-MM-DD（給 type="date" 用）
