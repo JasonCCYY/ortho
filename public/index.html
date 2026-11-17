@@ -32,6 +32,9 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       診號
     </button>
+    <button onclick="APP.openICD()" title="ICD 查詢" style="display:flex;align-items:center;gap:5px;height:34px;padding:0 12px;border:none;background:#e4ecf4;border-radius:8px;color:var(--txt2);font-size:.84rem;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      ICD
+    </button>
     <div class="hdr-actions">
       <button class="hdr-btn" onclick="APP.refresh()" title="重新整理">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -122,7 +125,7 @@
                 <span class="th col-code">代碼</span>
                 <span class="th col-price" style="text-align:right">單價</span>
                 <span class="th col-qty" style="text-align:center">量</span>
-                <span class="th col-area" style="text-align:right">院區</span>
+                <span class="th col-type">類型</span>
               </div>
               <div id="code-rec-list"></div>
             </div>
@@ -226,6 +229,7 @@
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 </button>
 <div class="toast" id="toast"></div>
+<div class="toast-undo" id="toast-undo"><span class="tu-msg"></span><button class="tu-btn" onclick="APP.doUndo()">復原</button></div>
 
 <!-- 掃描結果 Modal -->
 <div class="modal-bd" id="modal-scan" onclick="if(event.target===this)APP.closeModal('modal-scan')">
@@ -241,11 +245,27 @@
   </div>
 </div>
 
+<!-- PATIENT HISTORY MODAL -->
+<div class="modal-bd" id="modal-patient-history" onclick="if(event.target===this)APP.closeModal('modal-patient-history')">
+<div class="modal-sheet" style="max-height:82dvh;display:flex;flex-direction:column">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="ph-title" style="padding:0 16px 8px">病人歷史</div>
+  <div id="ph-body" style="flex:1;overflow-y:auto;padding:0 16px 8px"></div>
+  <div style="padding:12px 16px 20px">
+    <button class="btn-cancel" onclick="APP.closeModal('modal-patient-history')" style="width:100%">關閉</button>
+  </div>
+</div>
+</div>
+
 <!-- DETAIL MODAL -->
 <div class="modal-bd" id="modal-detail" onclick="if(event.target===this)APP.closeModal('modal-detail')">
 <div class="modal-sheet">
   <div class="modal-handle"></div>
-  <div class="modal-title" id="detail-title">詳情</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 0">
+    <div class="modal-title" id="detail-title" style="flex:1">詳情</div>
+    <button id="detail-track-btn" onclick="APP.moveToTrack()" style="display:none;background:#e8f4e8;border:none;border-radius:8px;padding:5px 12px;font-size:.82rem;font-weight:600;color:#2a7a2a;cursor:pointer;white-space:nowrap">追蹤</button>
+    <button id="detail-sx-btn" onclick="APP.moveToSx()" style="display:none;background:#e4ecf4;border:none;border-radius:8px;padding:5px 12px;font-size:.82rem;font-weight:600;color:#1a5a9a;cursor:pointer;white-space:nowrap">手術</button>
+  </div>
   <div id="detail-body"></div>
   <div class="detail-actions">
     <button class="btn-del" onclick="APP.deleteDetail()">🗑 刪除</button>
@@ -277,15 +297,23 @@
       <button class="chip" onclick="APP.editSelectType(this,'Tumor','es')">Tumor</button>
       <button class="chip" onclick="APP.editSelectType(this,'Hand','es')">Hand</button>
       <button class="chip" onclick="APP.editSelectType(this,'ROI','es')">ROI</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Infection','es')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="es-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="es-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('es-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="es-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="es-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="es-bone-val">
     <div class="bone-grid" id="es-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
   <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="es-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('es-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
+  <div class="fg" id="es-codes-section">
+    <label class="fg-label">代碼</label>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div id="es-codes-chips" style="flex:1;display:flex;flex-wrap:wrap;gap:6px;min-height:32px"></div>
+      <button type="button" onclick="APP.openEditOpCodePicker()" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--accent);border-radius:8px;background:var(--elevated);color:var(--accent);font-size:.88rem;cursor:pointer;white-space:nowrap">新增代碼</button>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-edit-sx')">取消</button><button class="btn-save" onclick="APP.saveEdit()">儲存</button></div>
 </div></div>
 
@@ -310,9 +338,10 @@
       <button class="chip" onclick="APP.editSelectType(this,'Tumor','et')">Tumor</button>
       <button class="chip" onclick="APP.editSelectType(this,'Hand','et')">Hand</button>
       <button class="chip" onclick="APP.editSelectType(this,'ROI','et')">ROI</button>
+      <button class="chip" onclick="APP.editSelectType(this,'Infection','et')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="et-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="et-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('et-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="et-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="et-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="et-bone-val">
@@ -330,7 +359,7 @@
   <div class="fg"><label class="fg-label">日期</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="em-date" style="flex:1"><button type="button" class="btn-next-month" onclick="APP.bumpMonth('em-date')">下個月</button></div></div>
   <div class="fg-row">
     <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="em-price"></div>
-    <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="em-qty" min="1"></div>
+    <div class="fg"><label class="fg-label">數量</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="number" id="em-qty" min="1" style="flex:1"><button type="button" class="btn-next-month" onclick="const e=document.getElementById('em-qty');e.value=(parseInt(e.value)||0)+1">+1</button></div></div>
   </div>
   <div class="fg">
     <label class="fg-label">Done</label>
@@ -372,7 +401,7 @@
   <div class="modal-handle"></div><div class="modal-title">修改代碼紀錄</div>
   <div class="fg"><label class="fg-label">術式</label><input class="f-input" type="text" id="ecr-name"></div>
   <div class="fg"><label class="fg-label">代碼</label><input class="f-input" type="text" id="ecr-code"></div>
-  <div class="fg"><label class="fg-label">日期</label><input class="f-input" type="text" id="ecr-date"></div>
+  <div class="fg"><label class="fg-label">日期</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="ecr-date" style="flex:1"><button type="button" class="btn-next-month" onclick="APP.bumpMonth('ecr-date')">下個月</button></div></div>
   <div class="fg-row">
     <div class="fg"><label class="fg-label">單價</label><input class="f-input" type="number" id="ecr-price"></div>
     <div class="fg"><label class="fg-label">數量</label><input class="f-input" type="number" id="ecr-qty" min="1"></div>
@@ -415,15 +444,23 @@
       <button class="chip" onclick="APP.selectType(this,'Tumor')">Tumor</button>
       <button class="chip" onclick="APP.selectType(this,'Hand')">Hand</button>
       <button class="chip" onclick="APP.selectType(this,'ROI')">ROI</button>
+      <button class="chip" onclick="APP.selectType(this,'Infection')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="s-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="s-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('s-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="s-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="s-location" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="s-bone-val">
     <div class="bone-grid" id="s-bone-wrap"><div style="color:var(--muted);font-size:.88rem">請先選擇類型</div></div>
   </div>
   <div class="fg"><label class="fg-label">備註</label><div style="display:flex;gap:8px;align-items:center"><input class="f-input" type="text" id="s-note" placeholder="選填" style="flex:1"><button type="button" onclick="document.getElementById('s-note').value=''" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--elevated);color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap">清空</button></div></div>
+  <div class="fg" id="s-codes-section">
+    <label class="fg-label">代碼</label>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div id="s-codes-chips" style="flex:1;display:flex;flex-wrap:wrap;gap:6px;min-height:32px"></div>
+      <button type="button" onclick="APP.openOpCodePicker()" style="flex-shrink:0;padding:0 12px;height:40px;border:1px solid var(--accent);border-radius:8px;background:var(--elevated);color:var(--accent);font-size:.88rem;cursor:pointer;white-space:nowrap">新增代碼</button>
+    </div>
+  </div>
   <div class="modal-actions"><button class="btn-cancel" onclick="APP.closeModal('modal-op')">取消</button><button class="btn-save" onclick="APP.saveOp()">儲存</button></div>
 </div></div>
 
@@ -448,9 +485,10 @@
       <button class="chip" onclick="APP.tkSelectType(this,'Tumor')">Tumor</button>
       <button class="chip" onclick="APP.tkSelectType(this,'Hand')">Hand</button>
       <button class="chip" onclick="APP.tkSelectType(this,'ROI')">ROI</button>
+      <button class="chip" onclick="APP.tkSelectType(this,'Infection')">Infection</button>
     </div>
   </div>
-  <div class="fg"><label class="fg-label">手術名稱</label><select class="f-sel" id="tk-opname"><option value="">請先選擇類型</option></select></div>
+  <div class="fg"><label class="fg-label">手術名稱</label><div style="display:flex;gap:6px"><select class="f-input" id="tk-opname-sel" style="flex:0 0 auto;width:auto" onchange="if(this.value){document.getElementById('tk-opname').value=this.value;this.value=''}"><option value="">▾ 選</option></select><input class="f-input" id="tk-opname" style="flex:1;min-width:0" placeholder="自訂名稱" autocomplete="off"></div></div>
   <div class="fg"><label class="fg-label">部位</label><input class="f-input" type="text" id="tk-loc" placeholder="如 Rt、Lt、L4-5"></div>
   <div class="fg">
     <label class="fg-label">骨材</label><input type="hidden" id="tk-bone-val">
@@ -515,6 +553,16 @@
   <div id="search-results" style="max-height:65dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)">
     <div class="load-msg" style="color:var(--muted)">輸入關鍵字搜尋</div>
   </div>
+</div></div>
+
+<div class="modal-bd" id="modal-codepick" onclick="if(event.target===this)APP.closeModal('modal-codepick')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 12px">
+    <span class="modal-title" style="margin:0">選擇代碼</span>
+    <button onclick="APP.closeModal('modal-codepick')" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer">✕</button>
+  </div>
+  <div id="codepick-list" style="max-height:60dvh;overflow-y:auto"></div>
 </div></div>
 
 <script src="/js/auth.js"></script>

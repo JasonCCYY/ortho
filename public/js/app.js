@@ -484,7 +484,6 @@ const APP = {
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
-      const opNames = (SHEETS.opCats||[]).map(c => c.name).filter(Boolean);
       const boneCatsAll = SHEETS.boneCats || [];
       const boneItems = [
         ...boneCatsAll.map(c => c.product),
@@ -497,11 +496,25 @@ const APP = {
         if (!brandProducts[c.brand]) brandProducts[c.brand] = [];
         if (!brandProducts[c.brand].includes(c.product)) brandProducts[c.brand].push(c.product);
       });
-      const res = await fetch('/api/parse-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, opNames, boneItems, abbrevList, brandProducts }),
+      // OP分類 by type，供 AI 依代碼類別篩選手術名稱
+      const opCatsByType = {};
+      (SHEETS.opCats||[]).forEach(c => {
+        if (!c.type || !c.name) return;
+        if (!opCatsByType[c.type]) opCatsByType[c.type] = [];
+        opCatsByType[c.type].push(c.name);
       });
+      // 代碼→類別 對照表，送給 AI 做查詢
+      const preloadedCodes = await SHEETS.loadOpCodes();
+      const codeTypes = {};
+      preloadedCodes.forEach(c => { if(c.code && c.type) codeTypes[String(c.code).trim()] = c.type; });
+
+      const [res] = await Promise.all([
+        fetch('/api/parse-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts }),
+        }),
+      ]);
       console.log('[scan] response status:', res.status);
       const data = await res.json();
       console.log('[scan] response data:', JSON.stringify(data).substring(0, 500));
@@ -515,11 +528,9 @@ const APP = {
 
       document.getElementById('scan-status').textContent = `找到 ${patients.length} 筆紀錄`;
 
-      // 載入代碼表（用於比對批價碼）
-      const opCodes = await SHEETS.loadOpCodes();
-      // 只建立中正院區的代碼對照表
+      // 建立中正院區的代碼對照表（已在上方預載）
       const codeMap = {};
-      opCodes.filter(c => c.area === '中正').forEach(c => {
+      preloadedCodes.filter(c => c.area === '中正').forEach(c => {
         codeMap[String(c.code).trim()] = c;
       });
 
@@ -580,6 +591,7 @@ const APP = {
         // 操作按鈕
         html += `<div class="scan-actions">
           <button class="scan-btn-save" onclick="APP.scanConfirm(${idx})">✓ 新增</button>
+          <button class="scan-btn-edit" onclick="APP.scanAddCode(${idx})">＋代碼</button>
           <button class="scan-btn-edit" onclick="APP.scanEdit(${idx})">✏ 編輯</button>
           <button class="scan-btn-skip" onclick="APP.scanSkip(${idx})">略過</button>
         </div>
@@ -656,41 +668,61 @@ const APP = {
       // 從代碼取類型（取第一個有 type 的代碼）
       const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
 
+      // 建立骨材字串（使用 surgRecord）
+      let implant = '';
+      if (p.implants && p.implants.length) {
+        const allProds = SHEETS.matProds || [];
+        implant = p.implants.map(impl => {
+          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+          const text = qm ? qm[1].trim() : impl.trim();
+          const qty  = qm ? parseInt(qm[2]) : 1;
+          const m = allProds.find(c => c.product.toLowerCase() === text.toLowerCase())
+                 || allProds.find(c => (c.brand+' '+c.product).toLowerCase() === text.toLowerCase())
+                 || allProds.find(c => c.surgRecord && c.surgRecord.toLowerCase() === text.toLowerCase());
+          const label = m?.product || text;
+          return qty > 1 ? label + '*' + qty : label;
+        }).join(' , ');
+      }
+
+      if(await this._checkDuplicate(p.name, p.date) && !confirm(`${p.date} 已有「${p.name}」的手術紀錄，確定仍要新增？`)) return;
+
       // 新增手術紀錄
+      const codeStr = (p.matchedCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp({
         date: p.date,
         area: '中正',
         mrn: p.mrn,
         clinicId: '',
         name: p.name,
-        type: typeFromCode,
-        opName: '',
-        location: '',
-        implant: '',
+        type: p.type || typeFromCode,
+        opName: p.opName || '',
+        location: p.location || '',
+        implant,
         note: p.note,
+        codes: codeStr,
       });
       this._markAddedToday('sx', p.date+'|'+p.name);
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
-        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
-        this._markAddedToday('code', this.today()+'|'+c.name+'|'+c.code+'|中正');
+        await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'', date: p.date, patient: p.name });
+        this._markAddedToday('code', p.date+'|'+c.name+'|'+c.code+'|中正');
       }
 
-      // 新增骨材記錄（辨識到的 implants）
-      if (p.implants && p.implants.length) {
-        const bCats = SHEETS.boneCats || [];
+      // 同步骨材記錄
+      if (implant) {
         const matProds = await SHEETS.loadMatProducts();
-        for (const impl of p.implants) {
-          const lo = impl.toLowerCase();
-          const m = bCats.find(c=>(c.brand+' '+c.product).toLowerCase()===lo)
-                 || bCats.find(c=>c.product.toLowerCase()===lo)
-                 || bCats.find(c=>c.brand.toLowerCase()===lo);
-          if (!m) continue;
-          const prod = matProds.find(pr=>pr.brand===m.brand&&pr.product===m.product)
-                    || matProds.find(pr=>pr.product===m.product);
-          await SHEETS.addMatFromSurgery({ date: p.date, brand: m.brand, product: m.product, price: prod?.price||'', qty: 1, patient: p.name });
-          this._markAddedToday('mat', p.date+'|'+m.brand+'|'+m.product+'|'+p.name);
+        const boneSels = this._parseImplantToSelections(implant, SHEETS.boneCats || []);
+        for (const s of boneSels) {
+          if (!s.product) continue;
+          const prod = matProds.find(mp => mp.brand === s.brand && mp.product === s.product)
+                    || matProds.find(mp => mp.product === s.product);
+          const matBrand = s.brand || prod?.brand || s.product;
+          await SHEETS.addMatFromSurgery({
+            date: p.date, brand: matBrand,
+            product: s.product, price: prod?.price || '', qty: s.qty || 1, patient: p.name
+          });
+          this._markAddedToday('mat', p.date+'|'+matBrand+'|'+s.product+'|'+p.name);
         }
       }
 
@@ -703,6 +735,112 @@ const APP = {
     } catch(e) {
       this.toast('❌ ' + e.message);
     }
+  },
+
+  async scanAddCode(idx) {
+    const p = this._scanPatients?.[idx];
+    if(!p) return;
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === '中正');
+    this._showCodePicker(filtered, (c, half) => {
+      if(!p.matchedCodes) p.matchedCodes = [];
+      const key = c.code+(half?'*':'');
+      if(p.matchedCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        p.matchedCodes.push({name:c.name+'*', code:key, price:hp, area:c.area, type:c.type||'', found:true});
+        this.toast(`已加入 ${c.name}*（$${hp.toLocaleString()}）`);
+      } else {
+        p.matchedCodes.push({name:c.name, code:c.code, price:c.price, area:c.area, type:c.type||'', found:true});
+        this.toast(`已加入 ${c.name}`);
+      }
+      const codeEl = document.querySelector(`#scan-card-${idx} .scan-codes`);
+      if(codeEl) {
+        codeEl.innerHTML = p.matchedCodes.map(mc=>
+          `<span class="scan-code-chip">${mc.name} <span style="color:var(--muted)">${mc.code}</span> $${Number(mc.price||0).toLocaleString()}</span>`
+        ).join('');
+      }
+    });
+  },
+
+  _showCodePicker(codes, onSelect) {
+    const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+    const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
+    const sorted = [...codes].sort((a,b)=>{
+      const tr=typeRank(a.type)-typeRank(b.type);
+      return tr!==0?tr:parseInt(a.code||0)-parseInt(b.code||0);
+    });
+    let html = '';
+    sorted.forEach(c => {
+      const cleanP = parseFloat(String(c.price||0).replace(/,/g,''))||0;
+      const t = c.type||'';
+      const si = APP._storeRow(c);
+      html += `<div class="list-row" style="gap:0;position:relative">
+        <span class="col-code" style="font-size:.85rem;color:var(--muted)">${c.code}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${c.name}</span>
+        <div style="display:flex;gap:16px;flex-shrink:0" onclick="event.stopPropagation()">
+          <button class="add-center-btn" onclick="APP._codepickCb(${si},false)">＋</button>
+          <button class="add-center-btn add-half-btn" onclick="APP._codepickCb(${si},true)">½</button>
+        </div>
+        ${t?`<span class="badge badge-${t}" style="font-size:.65rem;padding:1px 5px;flex-shrink:0;margin-left:4px">${t}</span>`:''}
+        <span class="col-price" style="min-width:60px;text-align:right">${cleanP?'$'+cleanP.toLocaleString():''}</span>
+      </div>`;
+    });
+    this._codepickCb = (si, half) => {
+      const c = APP._getRow(si);
+      if(c) { onSelect(c, half); APP.closeModal('modal-codepick'); }
+    };
+    document.getElementById('codepick-list').innerHTML = html;
+    this.openModal('modal-codepick');
+  },
+
+  async openOpCodePicker() {
+    const area = document.getElementById('s-area-val')?.value || '中正';
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === area);
+    this._showCodePicker(filtered, (c, half) => {
+      if(!this._pendingOpCodes) this._pendingOpCodes = [];
+      const key = c.code+(half?'*':'');
+      if(this._pendingOpCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        this._pendingOpCodes.push({name:c.name+'*', code:key, price:hp, type:c.type||''});
+      } else {
+        this._pendingOpCodes.push({name:c.name, code:c.code, price:c.price, type:c.type||''});
+      }
+      this._renderPendingCodes('s-codes-chips', this._pendingOpCodes);
+    });
+  },
+
+  async openEditOpCodePicker() {
+    const area = document.getElementById('es-area-val')?.value || '中正';
+    const allCodes = await SHEETS.loadOpCodes();
+    const filtered = allCodes.filter(c => c.area === area);
+    this._showCodePicker(filtered, (c, half) => {
+      if(!this._editOpCodes) this._editOpCodes = [];
+      const key = c.code+(half?'*':'');
+      if(this._editOpCodes.find(x=>x.code===key)) { this.toast('已存在'); return; }
+      if(half) {
+        const hp = Math.round(parseFloat(String(c.price).replace(/,/g,''))/2);
+        this._editOpCodes.push({name:c.name+'*', code:key, price:hp, type:c.type||''});
+      } else {
+        this._editOpCodes.push({name:c.name, code:c.code, price:c.price, type:c.type||''});
+      }
+      this._renderPendingCodes('es-codes-chips', this._editOpCodes);
+    });
+  },
+
+  _renderPendingCodes(elId, codes) {
+    const el = document.getElementById(elId);
+    if(!el) return;
+    el.innerHTML = (codes||[]).map((c,i)=>
+      `<span class="chip on" style="font-size:.8rem;padding:2px 8px">${c.name} <span onclick="APP._removePendingCode('${elId}',${i})" style="margin-left:4px;cursor:pointer;opacity:.7">✕</span></span>`
+    ).join('');
+  },
+
+  _removePendingCode(elId, idx) {
+    if(elId==='s-codes-chips') { (this._pendingOpCodes||[]).splice(idx,1); this._renderPendingCodes(elId, this._pendingOpCodes); }
+    else if(elId==='es-codes-chips') { (this._editOpCodes||[]).splice(idx,1); this._renderPendingCodes(elId, this._editOpCodes); }
   },
 
   scanEdit(idx) {
@@ -722,7 +860,7 @@ const APP = {
         c.classList.toggle('on', c.textContent.trim() === '中正');
       });
       // 預填類型
-      const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
+      const typeFromCode = p.type || (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
       if(typeFromCode) {
         document.getElementById('s-type-val').value = typeFromCode;
         document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c => {
@@ -732,18 +870,21 @@ const APP = {
         if(p.opName) document.getElementById('s-opname').value = p.opName;
         if(p.location) document.getElementById('s-location').value = p.location;
       }
-      // 自動勾選骨材/生長因子
+      // 自動勾選骨材/生長因子（解析數量）
       if(p.implants && p.implants.length) {
         const bCats = SHEETS.boneCats || [];
         const map = this._getBoneMap('s-bone-wrap');
         p.implants.forEach(impl => {
-          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===impl.toLowerCase());
-          const byP  = bCats.find(c => c.product.toLowerCase()===impl.toLowerCase());
-          const byB  = bCats.find(c => c.brand.toLowerCase()===impl.toLowerCase());
-          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===impl.toLowerCase());
+          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+          const text = qm ? qm[1].trim() : impl.trim();
+          const qty  = qm ? parseInt(qm[2]) : 1;
+          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===text.toLowerCase());
+          const byP  = bCats.find(c => c.product.toLowerCase()===text.toLowerCase());
+          const byB  = bCats.find(c => c.brand.toLowerCase()===text.toLowerCase());
+          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===text.toLowerCase());
           const m = byBP || byP || byB;
-          if (m) map.set(m.brand+'|'+m.product, 1);
-          else if (gf) map.set('|'+gf, 1);
+          if (m) map.set(m.brand+'|'+m.product, qty);
+          else if (gf) map.set('|'+gf, qty);
         });
         // Refresh visible chip states
         document.querySelectorAll('#s-bone-wrap .bone-toggle').forEach(btn => {
@@ -753,11 +894,15 @@ const APP = {
           let q = btn.querySelector('.bone-qty');
           if (qty > 0) {
             if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
-            q.textContent = qty > 1 ? ' ×'+qty : '';
+            q.textContent = qty > 1 ? '*'+qty : '';
           } else { q?.remove(); }
         });
         this._updateBoneVal('s-bone-wrap');
       }
+      // Pre-populate recognized codes so they show in the edit modal
+      this._pendingOpCodes = (p.matchedCodes || [])
+        .map(c => ({ name: c.name, code: c.code, price: c.price, type: c.type || '' }));
+      this._renderPendingCodes('s-codes-chips', this._pendingOpCodes);
     }, 50);
   },
 
@@ -872,10 +1017,11 @@ const APP = {
 
   // ── Refresh ──
   refresh() {
-    const cacheMap = { sxList:'op', track:'track', matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
+    const cacheMap = { sxList:'op', track:'track', stats:['op','matProd'], matRec:'matRec2', selfPay:'matProd', opCode:'opCode', codeRec:'codeRec2', estimate:'estimate', clinic:'clinic2' };
     const key = this.tab==='surgery' ? this.subSx : this.tab==='material' ? this.subMat : this.tab;
     const cacheKey = cacheMap[key];
-    if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
+    if(Array.isArray(cacheKey)) cacheKey.forEach(k=>localStorage.removeItem('ortho_'+k));
+    else if(cacheKey) localStorage.removeItem('ortho_'+cacheKey);
     SHEETS.loadCategories().catch(()=>{});
     if(this.tab==='surgery') this.switchSx(this.subSx);
     else if(this.tab==='material') this.switchMat(this.subMat);
@@ -904,6 +1050,8 @@ const APP = {
       if(!sorted.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
       const monthGroups = {};
       sorted.forEach(r => { const m=this.getMonth(r.date); (monthGroups[m]=monthGroups[m]||[]).push(r); });
+      const nameCount = {};
+      sorted.forEach(r => { if(r.name) nameCount[r.name] = (nameCount[r.name]||0) + 1; });
       let rows = '', lastM = '';
       sorted.forEach(r => {
         const m = this.getMonth(r.date);
@@ -918,15 +1066,20 @@ const APP = {
         const _si=APP._storeRow(r);
         const isYC = r.area==='右昌';
         const missingData = !r.name || !r.mrn;
+        const isNew = this._isAddedToday('sx', r.date+'|'+r.name);
         const prefix = missingData ? '<span style="color:var(--red);font-weight:700">*</span>' : (isYC ? '<span style="color:var(--muted)">．</span>' : '');
-        rows += `<tr class="sx-data-row" onclick="APP.openDetailS('sx',${_si})">
+        const dotHtml = isNew ? '<span class="new-dot" style="display:inline-block;vertical-align:middle;margin-right:3px"></span>' : '';
+        const nameHtml = (nameCount[r.name]||0) > 1
+          ? `<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span>`
+          : (r.name||'');
+        rows += `<tr class="sx-data-row${isNew?' row-new':''}" onclick="APP.openDetailS('sx',${_si})">
           <td class="sx-date">${day}</td>
-          <td class="sx-name">${prefix}${this._esc(r.name)}</td>
-          <td><span class="badge badge-${this._esc(r.type)}">${this._esc(r.type)||'-'}</span></td>
-          <td class="sx-opname">${this._esc(r.opName)}</td>
-          <td class="sx-loc" title="${this._esc(r.location)}">${this._esc(r.location)}</td>
-          <td class="sx-implant">${this._esc(r.implant)}</td>
-          <td class="sx-note">${this._esc(r.note)}</td>
+          <td class="sx-name">${dotHtml}${prefix}${nameHtml}</td>
+          <td><span class="badge badge-${r.type}">${r.type||'-'}</span></td>
+          <td class="sx-opname">${r.opName}</td>
+          <td class="sx-loc" title="${r.location}">${r.location}</td>
+          <td class="sx-implant">${r.implant}</td>
+          <td class="sx-note">${r.note}</td>
         </tr>`;
       });
       el.innerHTML = rows;
@@ -961,14 +1114,19 @@ const APP = {
         return (ai<0?99:ai) - (bi<0?99:bi);
       });
 
+      const trackNameCount = {};
+      recs.forEach(r => { if(r.name) trackNameCount[r.name] = (trackNameCount[r.name]||0) + 1; });
       let rows = "";
       sortedAreas.forEach(area => {
         rows += `<tr class="sx-month-row"><td colspan="8">${area} <span class="month-badge">${groups[area].length}</span></td></tr>`;
         groups[area].forEach(r => {
           const _si = APP._storeRow(r);
+          const trackNameHtml = (trackNameCount[r.name]||0) > 1
+            ? `<span class="name-link" onclick="event.stopPropagation();APP.openPatientHistory('${(r.name||'').replace(/'/g,"\\'")}')">${r.name}</span>`
+            : (r.name||'');
           rows += `<tr class="sx-data-row" onclick="APP.openDetailS('track',${_si})">
             <td class="sx-date" style="font-size:.82rem">${r.date}</td>
-            <td class="sx-name">${r.name}</td>
+            <td class="sx-name">${trackNameHtml}</td>
             <td><span class="badge badge-${r.type}">${r.type||"-"}</span></td>
             <td class="sx-opname">${r.opName}</td>
             <td class="sx-loc" title="${r.location}">${r.location}</td>
@@ -1014,8 +1172,12 @@ const APP = {
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
 
     try {
-      if(!SHEETS.boneCats) await SHEETS.loadCategories();
-      const ops = await SHEETS.loadOpRecords();
+      localStorage.removeItem('ortho_matProd');
+      localStorage.removeItem('ortho_op');
+      await SHEETS.loadCategories();
+      const allOps = await SHEETS.loadOpRecords();
+      const STATS_START = '2025/08';
+      const ops = allOps.filter(r => r.date && r.date >= STATS_START);
       const month = this._statsMonth;
       const mOps = ops.filter(r => r.date && r.date.startsWith(month));
 
@@ -1044,12 +1206,18 @@ const APP = {
       const boneMap = {}, gfMap = {};
       const gfList = SHEETS.growthFactors || [];
       const bCats = SHEETS.boneCats || [];
+      const allProds = SHEETS.matProds || [];
+      const gfAlias = {};
+      allProds.filter(p => p.type === '生長因子' && p.surgRecord).forEach(p => { gfAlias[p.surgRecord] = p.product; });
+      const gfNames = new Set([...gfList, ...Object.keys(gfAlias)]);
       mOps.forEach(r => {
         if(!r.implant) return;
         this._parseImplantToSelections(r.implant, bCats).forEach(s => {
           if(!s.product) return;
-          const target = gfList.includes(s.product) ? gfMap : boneMap;
-          target[s.product] = (target[s.product]||0) + (s.qty||1);
+          const isGf = gfNames.has(s.product);
+          const displayName = isGf ? (gfAlias[s.product] || s.product) : s.product;
+          const target = isGf ? gfMap : boneMap;
+          target[displayName] = (target[displayName]||0) + (s.qty||1);
         });
       });
       const bones = Object.entries(boneMap).sort((a,b)=>b[1]-a[1]);
@@ -1068,13 +1236,15 @@ const APP = {
 
       // Card 2: 類型分布
       if(types.length) {
+        const mTotal = mOps.length || 1;
         let typeHtml = types.map(([type, cnt]) => {
           const color = TYPE_COLOR[type] || 'var(--accent)';
           const pct = Math.round(cnt/maxT*100);
+          const pctLabel = Math.round(cnt/mTotal*100);
           return `<div class="stats-type-row">
             <span class="badge badge-${type}" style="min-width:62px;text-align:center">${type}</span>
             <div class="stats-bar-bg"><div class="stats-bar" style="width:${pct}%;background:${color}"></div></div>
-            <span class="stats-type-n">${cnt}</span>
+            <span class="stats-type-n">${cnt} <span style="color:var(--muted);font-size:.8em">${pctLabel}%</span></span>
           </div>`;
         }).join('');
         parts.push(`<div class="stats-card"><div class="stats-card-title">類型分布</div>${typeHtml}</div>`);
@@ -1135,7 +1305,7 @@ const APP = {
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">指標性手術</div>
         <table class="stats-key-table">
-          <thead><tr><th></th><th>本月</th><th>今年</th><th>所有</th></tr></thead>
+          <thead><tr><th></th><th>本月</th><th>${year}</th><th>所有</th></tr></thead>
           <tbody>${keyRows}</tbody>
         </table>
       </div>`);
@@ -1152,12 +1322,31 @@ const APP = {
         parts.push(`<div class="stats-card"><div class="stats-card-title">生長因子（本月）</div>${gHtml}</div>`);
       }
 
+      // Card: 累積總量（114/8起）— 最後一張
+      const allTypeMap = {};
+      ops.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
+      const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
+      const allZh = ops.filter(r=>r.area==='中正').length, allYc = ops.filter(r=>r.area==='右昌').length, allOther = ops.length-allZh-allYc;
+      const allAreaText = [allZh?`中正 ${allZh}`:'', allYc?`右昌 ${allYc}`:'', allOther?`其他 ${allOther}`:''].filter(Boolean).join(' ／ ');
+      const allTotal = ops.length || 1;
+      const allTypeHtml = allTypes.map(([t,n])=>`<div class="stats-type-row">
+        <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
+        <span class="stats-type-n" style="margin-left:auto">${n} <span style="color:var(--muted);font-size:.8em">${Math.round(n/allTotal*100)}%</span></span>
+      </div>`).join('');
+      parts.push(`<div class="stats-card">
+        <div class="stats-card-title">累積總量（114/8 起）</div>
+        <div class="stats-hero">${ops.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
+        <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
+        ${allTypeHtml}
+      </div>`);
       body.innerHTML = parts.join('') || `<div style="color:var(--muted);padding:32px 0;text-align:center">本月無手術紀錄</div>`;
     } catch(e) { body.innerHTML = this.err(e); }
   },
 
   // ── Material Records ──
-  async loadMatRec() {
+  async loadMatRec(keepScroll) {
+    const scroller = document.querySelector('#pg-mat-rec .list-content');
+    const savedY = keepScroll ? scroller?.scrollTop : 0;
     this._clearStore();
     const el = document.getElementById('mat-rec-list');
     el.innerHTML = this.loading();
@@ -1183,15 +1372,17 @@ const APP = {
         Object.values(groups).sort((a,b) => this.sortBrands(a.brand,b.brand)).forEach(g => {
           const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
           const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
-          const allDone = g.rows.length > 0 && g.rows.every(r=>r.done?.toLowerCase()==='true');
+          const allDone = g.rows.length > 0 && g.rows.every(r=>!r.done?.trim());
           const hasNewManual = g.rows.some(isManualToday);
           const detailId = 'mat-det-' + (detailCtr++);
           const em = encodeURIComponent(m), eb = encodeURIComponent(g.brand), ep = encodeURIComponent(g.product);
+          const totalVal = cleanP * totalQty;
+          const subLine = (totalQty > 1 && cleanP) ? `<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>` : '';
           html += `<div class="list-row" onclick="APP.toggleMatDetail('${detailId}')">
             <span class="${hasNewManual?'new-dot':'dot-ph'}"></span>
             <span class="col-brand">${g.brand}</span>
-            <span class="col-product">${g.product}</span>
-            <span class="col-qty">×${totalQty}</span>
+            <span class="col-product mat-agg-product">${g.product}${subLine}</span>
+            <span class="col-qty">${totalQty}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
             ${allDone?'<span class="done-ph"></span>':`<button class="done-btn" onclick="event.stopPropagation();APP.markDoneGroup('${em}','${eb}','${ep}')" title="標記全部完成">☑</button>`}
           </div>`;
@@ -1199,13 +1390,14 @@ const APP = {
           html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
           g.rows.forEach(r => {
             const _si = APP._storeRow(r);
-            const isDone = r.done?.toLowerCase()==='true';
+            const isDone = !r.done?.trim();
             const isNewRow = isManualToday(r);
-            html += `<div class="mat-detail-row${isDone?' done-row':''}" onclick="APP.openDetailS('mat',${_si})">
+            const isManual = r.patient==='門診' || r.patient==='';
+            const clickAttr = isManual ? ` onclick="APP.openDetailS('mat',${_si})" style="cursor:pointer"` : '';
+            html += `<div class="mat-detail-row${isDone?' done-row':''}"${clickAttr}>
               <span class="${isNewRow?'new-dot':'dot-ph'}"></span>
-              <span class="detail-date">${r.date}</span>
-              <span class="detail-patient">${r.patient||''}</span>
-              <span class="detail-qty">×${r.qty||1}</span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date) ? r.date.slice(5) : r.date}</span>
+              <span class="detail-patient">${r.patient||''}<span class="detail-qty"> *${r.qty||1}</span></span>
               ${isDone?'<span class="detail-done">✓</span>':''}
             </div>`;
           });
@@ -1213,6 +1405,7 @@ const APP = {
         });
       });
       el.innerHTML = html;
+      if (savedY && scroller) scroller.scrollTop = savedY;
     } catch(e) { el.innerHTML = this.err(e); }
   },
 
@@ -1223,8 +1416,11 @@ const APP = {
 
   async markDoneGroup(em, eb, ep) {
     const month = decodeURIComponent(em), brand = decodeURIComponent(eb), product = decodeURIComponent(ep);
-    try { await SHEETS.setDoneForMonth(month, brand, product); this.toast('✅ 已標記完成'); this.loadMatRec(); }
-    catch(e) { this.toast('❌ '+e.message); }
+    try {
+      const rows = await SHEETS.setDoneForMonth(month, brand, product);
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndoneRows(rows); this.loadMatRec(true); });
+      this.loadMatRec(true);
+    } catch(e) { this.toast('❌ '+e.message); }
   },
 
   // ── Self-pay ──
@@ -1244,7 +1440,10 @@ const APP = {
         const groups = {};
         list.forEach(r => { (groups[r.brand]=groups[r.brand]||[]).push(r); });
         let html = '';
-        Object.entries(groups).sort((a,b)=>this.sortBrands(a[0],b[0])).forEach(([brand,rows]) => {
+        Object.entries(groups).sort((a,b)=>{
+          if(a[0]==='小施') return -1; if(b[0]==='小施') return 1;
+          return this.sortBrands(a[0],b[0]);
+        }).forEach(([brand,rows]) => {
           html += `<div class="list-group-hdr">${brand}</div>`;
           rows.forEach(r => {
             const cleanP = String(r.price||'').replace(/,/g,'').trim();
@@ -1304,9 +1503,9 @@ const APP = {
           html += `<div class="list-row" style="gap:0;position:relative" onclick="APP.openDetailS('opcode',${_si})">
             <span class="col-code">${r.code}</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:500;padding:0 4px" title="${r.name}">${r.name}</span>
-            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:26px;flex-shrink:0" onclick="event.stopPropagation()">
-              <button class="add-center-btn" onclick="APP.qAddCode('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="新增到代碼紀錄">＋</button>
-              <button class="add-center-btn add-half-btn" onclick="APP.qAddCodeHalf('${r.name.replace(/'/g,"\\'")}','${r.code}','${r.price}','${r.area}','${(r.type||'').replace(/'/g,"\\'")}')" title="第二術式（減半）">½</button>
+            <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:30px">
+              <button class="add-center-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},false)" title="新增">＋</button>
+              <button class="add-center-btn add-half-btn" onclick="event.stopPropagation();APP.qAddCodeManual(${_si},true)" title="半價">½</button>
             </div>
             ${t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px;flex-shrink:0">${t}</span>`:'<span style="width:52px"></span>'}
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
@@ -1328,43 +1527,66 @@ const APP = {
       const typeMap = {};
       opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type || ''; });
       const resolveType = r => r.type || typeMap[r.code] || typeMap[(r.code||'').replace('*','')] || '';
-      const TYPE_ORDER_CR = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
-      const typeRankCR = t => { const i=TYPE_ORDER_CR.indexOf(t||''); return i===-1?TYPE_ORDER_CR.length:i; };
+      const TYPE_ORDER = ['Joint','Sports','Trauma','Spine','Hand','Tumor','ROI'];
+      const typeRank = t => { const i=TYPE_ORDER.indexOf(t||''); return i===-1?TYPE_ORDER.length:i; };
       let html = '';
-      this.groupByMonth(recs).forEach(([m,rows]) => {
+      let detailCtr = 0;
+      this.groupByMonth(recs).forEach(([m, rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
-        const areaOrd=['中正','右昌'];
-        const sorted=[...rows].sort((a,b)=>{
-          const aN=this._isAddedToday('code', a.date+'|'+a.name+'|'+a.code+'|'+a.area);
-          const bN=this._isAddedToday('code', b.date+'|'+b.name+'|'+b.code+'|'+b.area);
-          if(aN&&!bN) return -1; if(!aN&&bN) return 1;
-          const ai=areaOrd.indexOf(a.area),bi=areaOrd.indexOf(b.area);
-          if(ai>=0&&bi>=0&&ai!==bi) return ai-bi;
-          const tr=typeRankCR(resolveType(a))-typeRankCR(resolveType(b));
-          if(tr!==0) return tr;
-          return parseInt(a.code||0)-parseInt(b.code||0);
+        // 父項：術式+代碼，子項：病患
+        const groups = {};
+        rows.forEach(r => {
+          const key = (r.code||'')+'|'+(r.name||'');
+          if(!groups[key]) groups[key] = { code:r.code, name:r.name, price:r.price, area:r.area, type:resolveType(r), rows:[] };
+          groups[key].rows.push(r);
         });
-        sorted.forEach(r => {
-          const isNew=this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
-          const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
-          const t=resolveType(r);
-          const _si=APP._storeRow(r);
-          const tagInner = r.area==='右昌'
-            ? `<span class="col-area" style="width:auto">右昌</span>`
-            : (t?`<span class="badge badge-${t}" style="font-size:.68rem;padding:1px 6px">${t}</span>`:'');
-          html += `<div class="list-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})">
-            ${isNew?'<span class="new-dot"></span>':'<span class="dot-ph"></span>'}
-            <span class="col-product" title="${r.name}">${r.name}</span>
-            <span class="col-code">${r.code}</span>
+        const sorted = Object.values(groups).sort((a,b) => {
+          const aN = a.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          const bN = b.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          if(aN&&!bN) return -1; if(!aN&&bN) return 1;
+          return typeRank(a.type)-typeRank(b.type)||parseInt(a.code||0)-parseInt(b.code||0);
+        });
+        sorted.forEach(g => {
+          const hasNew = g.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area));
+          const totalQty = g.rows.reduce((s,r)=>s+(parseInt(r.qty)||1),0);
+          const cleanP = parseFloat(String(g.price||0).replace(/,/g,''))||0;
+          const totalVal = cleanP*totalQty;
+          const t = g.type;
+          const detailId = 'cr-det-'+(detailCtr++);
+          const tagInner = g.area==='右昌'
+            ? `<span class="col-area" style="width:auto;font-size:.75rem">右昌</span>`
+            : (t?`<span class="badge badge-${t}" style="font-size:.65rem;padding:1px 5px">${t}</span>`:'');
+          const subLine = totalQty>1&&cleanP?`<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>`:'';
+          html += `<div class="list-row" onclick="APP.toggleCrDetail('${detailId}')">
+            <span class="${hasNew?'new-dot':'dot-ph'}"></span>
+            <span class="col-product" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem;font-weight:500;padding:0 4px">${g.name}${subLine}</span>
+            <span class="col-code" style="font-size:.83rem;color:var(--muted);flex-shrink:0">${g.code}</span>
             <span class="col-price">${cleanP?'$'+cleanP.toLocaleString():''}</span>
-            <span class="col-qty">${r.qty}</span>
+            <span class="col-qty">${totalQty}</span>
             <span class="col-type">${tagInner}</span>
           </div>`;
+          html += `<div id="${detailId}" class="mat-detail-list" style="display:none">`;
+          g.rows.forEach(r => {
+            const _si = APP._storeRow(r);
+            const isNew = this._isAddedToday('code', r.date+'|'+r.name+'|'+r.code+'|'+r.area);
+            html += `<div class="mat-detail-row${isNew?' row-new':''}" onclick="APP.openDetailS('coderec',${_si})" style="cursor:pointer">
+              <span class="${isNew?'new-dot':'dot-ph'}"></span>
+              <span class="detail-date">${/^\d{4}\/\d{2}\/\d{2}/.test(r.date)?r.date.slice(5):r.date}</span>
+              <span class="detail-patient" style="flex:1">${r.patient||'—'}</span>
+              ${(parseInt(r.qty)||1)>1?`<span class="detail-qty"> *${r.qty}</span>`:''}
+            </div>`;
+          });
+          html += `</div>`;
         });
       });
       el.innerHTML = html;
     } catch(e) { el.innerHTML = this.err(e); }
+  },
+
+  toggleCrDetail(detailId) {
+    const el = document.getElementById(detailId);
+    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
   },
 
   // ── Estimate — transposed: rows=labels, cols=months ──
@@ -1478,25 +1700,34 @@ const APP = {
 
   // ── Quick adds ──
   async qAddMat(brand, product, price) {
-    try { await SHEETS.quickAddMat(brand, product, price); this._markAddedToday('mat', this.today()+'|'+brand+'|'+product+'|門診'); this.toast(`✅ 已新增 ${product}`); }
+    try { await SHEETS.quickAddMat(brand, product, price); this._markAddedToday('mat', SHEETS.nowDate()+'|'+brand+'|'+product+'|門診'); this.toast(`✅ 已新增 ${product}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCode(name, code, price, area, type='') {
-    try { await SHEETS.quickAddCode({name,code,price,area,type}); this._markAddedToday('code', this.today()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
+  async qAddCode(name, code, price, area, type='', patient='') {
+    try { await SHEETS.quickAddCode({name,code,price,area,type,patient}); this._markAddedToday('code', SHEETS.nowDate()+'|'+name+'|'+code+'|'+area); this.toast(`✅ 已新增 ${name}`); }
     catch(e) { this.toast('❌ '+e.message); }
   },
-  async qAddCodeHalf(name, code, price, area, type='') {
+  async qAddCodeHalf(name, code, price, area, type='', patient='') {
     const halfPrice = Math.round(parseFloat(String(price).replace(/,/g,'')) / 2);
-    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type}); this._markAddedToday('code', this.today()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
+    try { await SHEETS.quickAddCode({name:name+'*', code:code+'*', price:halfPrice, area, type, patient}); this._markAddedToday('code', SHEETS.nowDate()+'|'+(name+'*')+'|'+(code+'*')+'|'+area); this.toast(`✅ 已新增 ${name}*（$${halfPrice.toLocaleString()}）`); }
     catch(e) { this.toast('❌ '+e.message); }
+  },
+  qAddCodeManual(idx, isHalf) {
+    const r = this._getRow(idx);
+    if(!r) return;
+    if(isHalf) this.qAddCodeHalf(r.name, r.code, r.price, r.area, r.type||'', '手動');
+    else this.qAddCode(r.name, r.code, r.price, r.area, r.type||'', '手動');
   },
   async qAddClinic(name, price) {
-    try { await SHEETS.quickAddClinic(name, price); this._markAddedToday('clinic', this.today()+'|'+name); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
+    try { await SHEETS.quickAddClinic(name, price); this._markAddedToday('clinic', SHEETS.nowMonth()+'|'+name); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async markDone(row) {
-    try { await SHEETS.setDone(row); this.toast('✅ 已標記完成'); this.loadMatRec(); }
-    catch(e) { this.toast('❌ '+e.message); }
+    try {
+      await SHEETS.setDone(row);
+      this.toastUndo('✅ 已標記完成', async () => { await SHEETS.setUndone(row); this.loadMatRec(true); });
+      this.loadMatRec(true);
+    } catch(e) { this.toast('❌ '+e.message); }
   },
 
   // ── Detail Modal via store index (avoids HTML encoding issues) ──
@@ -1507,6 +1738,43 @@ const APP = {
     this._detailType = type;
     this._detailData = r;
     this._renderDetail(type, r);
+  },
+
+  // ── Patient History ──
+  async openPatientHistory(name) {
+    document.getElementById('ph-title').textContent = name;
+    document.getElementById('ph-body').innerHTML = this.loading();
+    this.openModal('modal-patient-history');
+    try {
+      const [ops, tracks] = await Promise.all([SHEETS.loadOpRecords(), SHEETS.loadTrackRecords()]);
+      const all = [
+        ...ops.filter(r => r.name === name).map(r => ({...r, _type:'sx'})),
+        ...tracks.filter(r => r.name === name).map(r => ({...r, _type:'track'}))
+      ].sort((a, b) => this.dateNum(b.date) - this.dateNum(a.date));
+      if (!all.length) {
+        document.getElementById('ph-body').innerHTML = '<div style="color:var(--muted);padding:24px 0;text-align:center">無紀錄</div>';
+        return;
+      }
+      let html = '';
+      all.forEach(r => {
+        const _si = APP._storeRow(r);
+        const trackBadge = r._type === 'track' ? '<span style="font-size:.7rem;color:var(--muted);flex-shrink:0">追蹤</span>' : '';
+        html += `<div class="list-row" onclick="APP.closeModal('modal-patient-history');APP.openDetailS('${r._type}',${_si})">
+          <span style="min-width:72px;font-size:.82rem;color:var(--muted);flex-shrink:0">${r.date||''}</span>
+          <span class="badge badge-${r.type}" style="flex-shrink:0">${r.type||'-'}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem">${r.opName||''}</span>
+          <span style="font-size:.82rem;color:var(--muted);min-width:36px;text-align:right;flex-shrink:0">${r.location||''}</span>
+          ${trackBadge}
+        </div>`;
+      });
+      document.getElementById('ph-body').innerHTML = html;
+    } catch(e) { document.getElementById('ph-body').innerHTML = this.err(e); }
+  },
+
+  // ── Duplicate check ──
+  async _checkDuplicate(name, date) {
+    const ops = await SHEETS.loadOpRecords();
+    return ops.some(r => r.name === name && r.date === date);
   },
 
   // ── Detail Modal — hide _row / internal IDs ──
@@ -1524,11 +1792,11 @@ const APP = {
 
     let content = '';
     if(type==='sx'||type==='track') {
-      content = field('日期',r.date)+field('院區',r.area)+field('病歷號',r.mrn)+(type==='track'?field('診所ID',r.clinicId):'')+field('姓名',r.name)+field('類型',r.type)+field('手術名稱',r.opName)+field('部位',r.location)+field('骨材',r.implant)+field('備註',r.note);
+      content = field('日期',r.date)+field('院區',r.area)+field('病歷號',r.mrn)+(type==='track'?field('診所ID',r.clinicId):'')+field('姓名',r.name)+field('類型',r.type)+field('手術名稱',r.opName)+field('部位',r.location)+field('骨材',r.implant)+(type==='sx'?field('代碼',r.codes):'')+field('備註',r.note);
     } else if(type==='mat') {
       const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
       const total=cleanP*(parseInt(r.qty)||1);
-      content = field('廠牌',r.brand)+field('產品',r.product)+field('日期',r.date)+field('單價',cleanP?'$'+cleanP.toLocaleString():'')+field('數量',r.qty)+field('總價',total?'$'+total.toLocaleString():'')+field('狀態',r.done?.toLowerCase()==='true'?'已完成':'未完成');
+      content = field('廠牌',r.brand)+field('產品',r.product)+field('日期',r.date)+field('單價',cleanP?'$'+cleanP.toLocaleString():'')+field('數量',r.qty)+field('總價',total?'$'+total.toLocaleString():'')+field('狀態',!r.done?.trim()?'已完成':'未完成');
     } else if(type==='selfpay') {
       content = field('廠牌',r.brand)+field('產品',r.product)+field('類型',r.type)+field('單價',r.price?'$'+Number(String(r.price).replace(/,/g,'')).toLocaleString():'')+field('醫院',r.hospital);
     } else if(type==='opcode') {
@@ -1582,17 +1850,27 @@ const APP = {
       if(type==='sx') {
         // opname select
         const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const sel=document.getElementById('es-opname');
-        sel.innerHTML='<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}"${n===r.opName?' selected':''}>${n}</option>`).join('');
-        if(!names.includes(r.opName)&&r.opName){sel.innerHTML+=`<option value="${r.opName}" selected>${r.opName}</option>`;}
+        const esSel=document.getElementById('es-opname-sel');
+        if(esSel) esSel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+        document.getElementById('es-opname').value=r.opName||'';
         // bone chips — init directly
         APP.initEsBoneChips(typeVal, r.implant||'');
+        // Load existing codes for editing
+        SHEETS.loadOpCodes().then(allCodes => {
+          this._editOpCodes = (r.codes||'').split(',').filter(Boolean).map(code => {
+            const base = code.replace('*','');
+            const found = allCodes.find(c=>c.code===base);
+            const half = code.endsWith('*');
+            return { code, name:(found?.name||base)+(half?'*':''), price:half?Math.round(parseFloat(String(found?.price||0).replace(/,/g,''))/2):(found?.price||''), type:found?.type||'' };
+          });
+          this._renderPendingCodes('es-codes-chips', this._editOpCodes);
+        });
       } else {
         // Populate et-opname select
         const etNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===typeVal).map(c=>c.name);
-        const etSel=document.getElementById('et-opname');
-        etSel.innerHTML='<option value="">選擇手術名稱</option>'+etNames.map(n=>`<option value="${n}"${n===r.opName?' selected':''}>${n}</option>`).join('');
-        if(!etNames.includes(r.opName)&&r.opName){etSel.innerHTML+=`<option value="${r.opName}" selected>${r.opName}</option>`;}
+        const etSel=document.getElementById('et-opname-sel');
+        if(etSel) etSel.innerHTML='<option value="">▾ 選</option>'+etNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+        document.getElementById('et-opname').value=r.opName||'';
         APP.initEtBoneChips(typeVal, r.implant||'');
       }
     } else if(type==='mat') {
@@ -1601,7 +1879,7 @@ const APP = {
       document.getElementById('em-date').value    = r.date||'';
       document.getElementById('em-price').value   = this.cleanNum(r.price);
       document.getElementById('em-qty').value     = r.qty||'1';
-      const isDone = r.done?.toLowerCase()==='true';
+      const isDone = !r.done?.trim();
       document.getElementById('em-done-val').value = isDone?'true':'false';
       document.getElementById('em-done-y').classList.toggle('on',isDone);
       document.getElementById('em-done-n').classList.toggle('on',!isDone);
@@ -1651,11 +1929,42 @@ const APP = {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
         const oldName = r.name || '';
         const newName = document.getElementById('es-name').value;
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:document.getElementById('es-bone-val').value||'',note:document.getElementById('es-note').value});
+        const oldImplant = r.implant || '';
+        const newImplant = document.getElementById('es-bone-val').value || '';
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
         }
+        // Sync codes: update K col + OP代碼記錄
+        const editCodeStr = (this._editOpCodes||[]).map(c=>c.code).join(',');
+        await SHEETS.updateOpCodes(r._row, editCodeStr);
+        try {
+          await SHEETS.deleteCodesByPatient(r.date.substring(0,7), newName);
+          const editArea = document.getElementById('es-area-val').value || r.area || '中正';
+          for(const c of (this._editOpCodes||[])) {
+            await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||'', patient:newName, date:esDate});
+            this._markAddedToday('code', esDate+'|'+c.name+'|'+c.code+'|'+editArea);
+          }
+        } catch(e2) { this.toast('⚠️ 代碼同步失敗'); }
+        this._editOpCodes = [];
         this.closeModal('modal-edit-sx'); this.loadSurgery();
+        if (oldImplant !== newImplant) {
+          try {
+            const delCount = await SHEETS.deleteMatRecByPatientDate(newName, r.date);
+            let addCount = 0;
+            if (newImplant) {
+              const matProds = await SHEETS.loadMatProducts();
+              const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
+              for (const s of boneSels) {
+                if (!s.product) continue;
+                const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
+                await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+                addCount++;
+              }
+            }
+            this.toast('✅ 骨材記錄已同步修改');
+          } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
+        }
       } else if(type==='track') {
         const etDate=document.getElementById('et-date').value.replace(/-/g,'/');
         await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
@@ -1709,6 +2018,85 @@ const APP = {
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
       this.refresh();
+      if (type === 'sx' && r.name && r.date) {
+        try {
+          const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
+          if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
+      }
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
+  async moveToTrack() {
+    const r = this._detailData;
+    if(!r) return;
+    if(!confirm('將此手術紀錄移至追蹤？')) return;
+    try {
+      await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
+      await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移至追蹤');
+      this.refresh();
+      if (r.name && r.date) {
+        try {
+          const deleted = await SHEETS.deleteMatRecByPatientDate(r.name, r.date);
+          if (deleted > 0) this.toast('✅ 骨材記錄已同步刪除');
+        } catch(e2) { this.toast('⚠️ 骨材記錄同步失敗'); }
+        try {
+          const deletedCodes = await SHEETS.deleteCodesByPatient(r.date.substring(0,7), r.name);
+          if (deletedCodes > 0) this.toast('✅ 代碼紀錄已同步刪除');
+        } catch(e2) { this.toast('⚠️ 代碼記錄同步失敗'); }
+      }
+    } catch(e) { this.toast('❌ '+e.message); }
+  },
+
+  async moveToSx() {
+    const r = this._detailData;
+    if(!r) return;
+    const hasCodes = r.codes && r.codes.trim();
+    const hasImplant = r.implant && r.implant.trim();
+    if(!hasCodes && !hasImplant) {
+      if(!confirm('此追蹤紀錄無代碼及骨材資料，確定仍要移回手術紀錄？')) return;
+    } else {
+      if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
+    }
+    try {
+      await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
+      this._markAddedToday('sx', r.date+'|'+r.name);
+      await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
+      // Re-add codes to OP代碼記錄
+      if(hasCodes) {
+        const allCodes = await SHEETS.loadOpCodes();
+        const month = r.date.substring(0,7);
+        for(const code of r.codes.split(',').filter(Boolean)) {
+          const base = code.replace('*','');
+          const half = code.endsWith('*');
+          const master = allCodes.find(c=>c.code===base);
+          if(!master) continue;
+          const price = half ? Math.round(parseFloat(String(master.price||0).replace(/,/g,''))/2) : (parseFloat(String(master.price||0).replace(/,/g,''))||0);
+          const name = master.name+(half?'*':'');
+          const codeVal = master.code+(half?'*':'');
+          await SHEETS.quickAddCode({name, code:codeVal, price, area:r.area||'中正', type:master.type||'', date:r.date, patient:r.name});
+          this._markAddedToday('code', r.date+'|'+name+'|'+codeVal+'|'+(r.area||'中正'));
+        }
+      }
+      // Re-add bone materials to 醫材記錄
+      if(hasImplant) {
+        const matProds = await SHEETS.loadMatProducts();
+        const boneSels = this._parseImplantToSelections(r.implant, SHEETS.boneCats||[]);
+        for(const s of boneSels) {
+          if(!s.product) continue;
+          const prod = matProds.find(p=>p.brand===s.brand&&p.product===s.product)||matProds.find(p=>p.product===s.product);
+          const matBrand = s.brand||prod?.brand||s.product;
+          await SHEETS.addMatFromSurgery({date:r.date, brand:matBrand, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:r.name});
+          this._markAddedToday('mat', r.date+'|'+matBrand+'|'+s.product+'|'+r.name);
+        }
+      }
+      this._detailFromSearch = false;
+      this.closeModal('modal-detail');
+      this.toast('✅ 已移回手術紀錄');
+      this.refresh();
     } catch(e) { this.toast('❌ '+e.message); }
   },
 
@@ -1751,32 +2139,35 @@ const APP = {
     if(this._savingOp) return;
     const d={date:document.getElementById('s-date').value.replace(/-/g,'/'),area:document.getElementById('s-area-val').value,mrn:document.getElementById('s-mrn').value.trim(),clinicId:document.getElementById('s-clinicid')?.value.trim()||'',name:document.getElementById('s-name').value.trim(),type:document.getElementById('s-type-val').value,opName:document.getElementById('s-opname').value,location:document.getElementById('s-location').value.trim(),implant:document.getElementById('s-bone-val').value,note:document.getElementById('s-note').value.trim()};
     if(!d.date||!d.name){this.toast('請填入日期和姓名');return;}
+    if(await this._checkDuplicate(d.name, d.date) && !confirm(`${d.date} 已有「${d.name}」的手術紀錄，確定仍要新增？`)) return;
     this._savingOp = true;
     const btn=this._lockSaveBtn('modal-op');
-    const scanIdx = this._scanEditIdx ?? null;
     this._scanEditIdx = null;
     try{
+      d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
-      if(scanIdx !== null) {
-        const sp = this._scanPatients?.[scanIdx];
-        for(const c of (sp?.matchedCodes || [])) {
-          await SHEETS.quickAddCode({ name: c.name, code: c.code, price: c.price, area: '中正', type: c.type||'' });
-          this._markAddedToday('code', this.today()+'|'+c.name+'|'+c.code+'|中正');
-        }
+      this._markAddedToday('sx', d.date+'|'+d.name);
+      // Write codes (_pendingOpCodes pre-populated from matchedCodes in scanEdit)
+      for(const c of (this._pendingOpCodes||[])) {
+        await SHEETS.quickAddCode({ name:c.name, code:c.code, price:c.price, area:d.area, type:c.type||'', patient:d.name, date:d.date });
+        this._markAddedToday('code', d.date+'|'+c.name+'|'+c.code+'|'+d.area);
       }
+      this._pendingOpCodes = [];
       // Sync bone chips → 骨材記錄
       if (d.implant) {
         const matProds = await SHEETS.loadMatProducts();
-        const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []).filter(s => s.product);
-        await Promise.all(boneSels.map(s => {
+        const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []);
+        for (const s of boneSels) {
+          if (!s.product) continue;
           const prod = matProds.find(p => p.brand === s.brand && p.product === s.product)
                     || matProds.find(p => p.product === s.product);
-          this._markAddedToday('mat', d.date+'|'+(s.brand||s.product)+'|'+s.product+'|'+d.name);
-          return SHEETS.addMatFromSurgery({
-            date: d.date, brand: s.brand || s.product, product: s.product,
+          const matBrand = s.brand || prod?.brand || s.product;
+          await SHEETS.addMatFromSurgery({
+            date: d.date, brand: matBrand, product: s.product,
             price: prod?.price || '', qty: s.qty || 1, patient: d.name
           });
-        }));
+          this._markAddedToday('mat', d.date+'|'+matBrand+'|'+s.product+'|'+d.name);
+        }
       }
       this.closeModal('modal-op');
       this.toast('✅ 已儲存');
@@ -1788,7 +2179,10 @@ const APP = {
       document.getElementById('s-location').value='';
       document.getElementById('s-note').value='';
       document.getElementById('s-bone-val').value='';
-      document.getElementById('s-opname').innerHTML='<option value="">請先選擇類型</option>';
+      this._pendingOpCodes = [];
+      const sCodesChips = document.getElementById('s-codes-chips');
+      if(sCodesChips) sCodesChips.innerHTML='';
+      document.getElementById('s-opname').value='';
       document.getElementById('s-type-val').value='Joint';
       document.querySelectorAll('#modal-op .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
       this._initBoneWrap('s-bone-wrap','s-bone-val','Joint','');
@@ -1817,7 +2211,7 @@ const APP = {
       document.getElementById('tk-loc').value='';
       document.getElementById('tk-note').value='';
       if(document.getElementById('tk-bone-val')) document.getElementById('tk-bone-val').value='';
-      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').innerHTML='<option value="">選擇手術名稱</option>';
+      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
       document.getElementById('tk-type-val').value='Joint';
       document.querySelectorAll('#modal-track .chip:not(.area)').forEach(c=>{c.classList.remove('on');if(c.textContent.trim()==='Joint')c.classList.add('on');});
       this._initBoneWrap('tk-bone-wrap','tk-bone-val','Joint','');
@@ -1856,20 +2250,18 @@ const APP = {
     const [opCodes, recs] = await Promise.all([SHEETS.loadOpCodes(), SHEETS.read(SHEETS.T.codeRec,'A2:H500')]);
     const typeMap = {};
     opCodes.forEach(r => { if(r.code) typeMap[r.code] = r.type||''; });
-    const updates = [];
+    let updated = 0;
     for(let i=0;i<recs.length;i++){
-      const row=recs[i]; if(!row[0]||row[6]) continue;
+      const row=recs[i]; if(!row[0]) continue;
+      if(row[6]) continue; // already has type
       const code=(row[3]||'').trim();
       const t = typeMap[code] || typeMap[code.replace('*','')] || '';
-      if(t) updates.push({ range: `${SHEETS.T.codeRec}!G${i+2}`, values: [[t]] });
+      if(!t) continue;
+      await SHEETS.put(SHEETS.T.codeRec+'!G'+(i+2), [[t]]);
+      updated++;
     }
-    if(updates.length) {
-      const url = `${SHEETS.BASE}/${SHEETS.ID}/values:batchUpdate`;
-      await fetch(url, { method:'POST', headers:{...SHEETS.hdrs(),'Content-Type':'application/json'},
-        body: JSON.stringify({ valueInputOption:'USER_ENTERED', data: updates }) });
-      localStorage.removeItem('ortho_codeRec2');
-    }
-    this.toast(`✅ 已回填 ${updates.length} 筆類型`);
+    localStorage.removeItem('ortho_codeRec2');
+    this.toast(`✅ 已回填 ${updated} 筆類型`);
   },
   async saveCli() {
     if(this._savingCli) return; this._savingCli=true;
@@ -1899,21 +2291,22 @@ const APP = {
     document.getElementById(pfx+'-type-val').value = type;
     // For edit-sx/et also update bone/opname dropdowns
     if(pfx==='es') {
-      const sel = document.getElementById('es-opname');
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      sel.innerHTML = '<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      const sel=document.getElementById('es-opname-sel');
+      if(sel) sel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      document.getElementById('es-opname').value='';
       APP.initEsBoneChips(type, '');
     } else if(pfx==='et') {
       const etNames2=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      const etSel2=document.getElementById('et-opname');
-      if(etSel2) etSel2.innerHTML='<option value="">選擇手術名稱</option>'+etNames2.map(n=>`<option value="${n}">${n}</option>`).join('');
+      const etSel2=document.getElementById('et-opname-sel');
+      if(etSel2) etSel2.innerHTML='<option value="">▾ 選</option>'+etNames2.map(n=>`<option value="${n}">${n}</option>`).join('');
+      if(document.getElementById('et-opname')) document.getElementById('et-opname').value='';
       APP.initEtBoneChips(type, '');
     } else if(pfx==='tk') {
-      const tkSel=document.getElementById('tk-opname');
-      if(tkSel) {
-        const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-        tkSel.innerHTML='<option value="">選擇手術名稱</option>'+tkNames.map(n=>`<option value="${n}">${n}</option>`).join('');
-      }
+      const tkNames=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
+      const tkSel=document.getElementById('tk-opname-sel');
+      if(tkSel) tkSel.innerHTML='<option value="">▾ 選</option>'+tkNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+      if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
       APP.initTkBoneChips(type, '');
     }
   },
@@ -1925,46 +2318,83 @@ const APP = {
   },
   _parseImplantToSelections(implant, boneCats) {
     if (!implant) return [];
-    return implant.split(/\s*,\s*/).map(s=>s.trim()).filter(Boolean).map(part => {
-      const qm = part.match(/^(.+?)\s+×(\d+)$/);
+    return implant.split(' , ').map(s=>s.trim()).filter(Boolean).map(part => {
+      const qm = part.match(/^(.+?)\s*[×*](\d+)$/);
       const text = qm ? qm[1].trim() : part;
       const qty  = qm ? parseInt(qm[2]) : 1;
-      const tl   = text.toLowerCase();
-      const byBP = boneCats.find(c=>(c.brand+' '+c.product).toLowerCase()===tl);
-      const byP  = boneCats.find(c=>c.product.toLowerCase()===tl);
-      const byB  = boneCats.find(c=>c.brand.toLowerCase()===tl);
-      const m = byBP || byP || byB;
+      const byBP   = boneCats.find(c=>(c.brand+' '+c.product)===text);
+      const byP    = boneCats.find(c=>c.product===text);
+      const byB    = boneCats.find(c=>c.brand===text);
+      const bySr   = (SHEETS.matProds||[]).find(c=>c.surgRecord===text);
+      const byProd = (SHEETS.matProds||[]).find(c=>c.product===text);
+      const m = byBP || byP || byB || bySr || byProd;
       if (m) return { brand:m.brand, product:m.product, qty };
       return { brand:'', product:text, qty };
     });
   },
+  _getBoneDir(wrapId) {
+    if (!this._boneDirState) this._boneDirState = {};
+    if (!this._boneDirState[wrapId]) this._boneDirState[wrapId] = new Map();
+    return this._boneDirState[wrapId];
+  },
   boneChipClick(btn, wrapId, brand, product) {
     const map = this._getBoneMap(wrapId);
+    const dir = this._getBoneDir(wrapId);
     const key = brand + '|' + product;
+    if (btn._clickTimer) {
+      // Double-click: cancel pending single-click, deselect
+      clearTimeout(btn._clickTimer);
+      btn._clickTimer = null;
+      map.delete(key); dir.delete(key);
+      btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
+      this._updateBoneVal(wrapId);
+      return;
+    }
+    // Single click: cycle 0→1→2→3→2→1→0, show preview immediately
     const cur = map.get(key) || 0;
-    const next = cur >= 3 ? 0 : cur + 1;
+    const goingDown = dir.get(key) || false;
+    let next, nextDown;
+    if (cur === 0)           { next = 1; nextDown = false; }
+    else if (cur === 3)      { next = 2; nextDown = true; }
+    else if (goingDown) {
+      if (cur === 1)         { next = 0; nextDown = false; }
+      else                   { next = cur - 1; nextDown = true; }
+    } else                   { next = cur + 1; nextDown = false; }
     if (next === 0) {
-      map.delete(key); btn.classList.remove('on');
-      btn.querySelector('.bone-qty')?.remove();
+      btn.classList.remove('on'); btn.querySelector('.bone-qty')?.remove();
     } else {
-      map.set(key, next); btn.classList.add('on');
+      btn.classList.add('on');
       let q = btn.querySelector('.bone-qty');
       if (!q) { q = document.createElement('span'); q.className='bone-qty'; btn.appendChild(q); }
-      q.textContent = next > 1 ? ' ×'+next : '';
+      q.textContent = next > 1 ? '*'+next : '';
     }
-    this._updateBoneVal(wrapId);
+    btn._clickTimer = setTimeout(() => {
+      btn._clickTimer = null;
+      if (next === 0) { map.delete(key); dir.delete(key); }
+      else { map.set(key, next); dir.set(key, nextDown); }
+      this._updateBoneVal(wrapId);
+    }, 280);
   },
   _updateBoneVal(wrapId) {
     const map = this._getBoneMap(wrapId);
+    const allProds = SHEETS.matProds || [];
     const parts = [];
     map.forEach((qty, key) => {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
-      const label = brand ? brand+' '+product : product;
-      parts.push(qty > 1 ? label+' ×'+qty : label);
+      const cat = brand
+        ? allProds.find(c => c.brand === brand && c.product === product)
+        : allProds.find(c => c.product === product);
+      const label = product;
+      parts.push(qty > 1 ? label+'*'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
     if (inp) inp.value = parts.join(' , ');
+  },
+  _getBoneArea(wrapId) {
+    const prefix = wrapId.replace('-bone-wrap', '');
+    const el = document.getElementById(prefix + '-area-val');
+    return el ? (el.value || '中正') : '中正';
   },
   selectBoneBrand(btn, wrapId) {
     btn.closest('.bone-brand-row').querySelectorAll('.bone-brand-chip').forEach(c=>c.classList.remove('on'));
@@ -1973,27 +2403,34 @@ const APP = {
     const bwrap = document.getElementById(wrapId);
     const type = bwrap?.dataset.boneType || '';
     const map = this._getBoneMap(wrapId);
-    const boneCats = SHEETS.boneCats || [];
-    const products = boneCats.filter(c=>c.type===type && c.brand===brand);
+    const area = this._getBoneArea(wrapId);
+    const boneCats = (SHEETS.boneCats || []).filter(c=>!c.hospital||c.hospital===area);
+    const allProds = boneCats.filter(c=>c.type===type && c.brand===brand);
+    const products = allProds.filter((c,i)=>allProds.findIndex(p=>p.product===c.product)===i);
     const prodRow = document.getElementById(wrapId+'-prod-row');
     if (!prodRow) return;
     prodRow.innerHTML = products.map(c => {
       const key = c.brand+'|'+c.product;
       const qty = map.get(key) || 0;
       const on = qty > 0 ? ' on' : '';
-      const qStr = qty > 1 ? `<span class="bone-qty"> ×${qty}</span>` : '';
+      const qStr = qty > 1 ? `<span class="bone-qty">*${qty}</span>` : '';
       return `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
     }).join('');
   },
   _initBoneWrap(wrapId, valId, type, implant) {
     const bwrap = document.getElementById(wrapId);
     if (!bwrap) return;
-    const boneCats = SHEETS.boneCats || [];
+    const area = this._getBoneArea(wrapId);
+    const boneCats = (SHEETS.boneCats || []).filter(c=>!c.hospital||c.hospital===area);
     const growth = (SHEETS.growthFactors&&SHEETS.growthFactors.length) ? SHEETS.growthFactors : ['漢森柏0.5','PRP 15K','PRP 36K','羊膜22S','瑟若美'];
     const map = this._getBoneMap(wrapId);
     map.clear();
+    this._getBoneDir(wrapId).clear();
     if (implant) {
-      this._parseImplantToSelections(implant, boneCats).forEach(s => map.set(s.brand+'|'+s.product, s.qty));
+      this._parseImplantToSelections(implant, boneCats).forEach(s => {
+        const key = (growth.includes(s.product) ? '' : s.brand) + '|' + s.product;
+        map.set(key, s.qty);
+      });
     }
     bwrap.dataset.boneType = type;
     const twoLevel = type === 'Trauma' || type === 'Joint';
@@ -2009,12 +2446,13 @@ const APP = {
           h += `<button type="button" class="chip bone-brand-chip${b===startBrand?' on':''}" data-brand="${b}" onclick="APP.selectBoneBrand(this,'${wrapId}')">${b}</button>`;
         });
         h += `</div>`;
-        const prods = typeBones.filter(c=>c.brand===startBrand);
+        const allStartProds = typeBones.filter(c=>c.brand===startBrand);
+        const prods = allStartProds.filter((c,i)=>allStartProds.findIndex(p=>p.product===c.product)===i);
         h += `<div class="bone-section" style="margin-top:8px">產品</div>`;
         h += `<div class="chip-row wrap" style="margin-top:6px" id="${wrapId}-prod-row">`;
         prods.forEach(c => {
           const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
-          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          const qStr=qty>1?`<span class="bone-qty">*${qty}</span>`:'';
           h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
         });
         h += `</div>`;
@@ -2022,10 +2460,12 @@ const APP = {
     } else {
       const prods = boneCats.filter(c=>c.type===type);
       if (prods.length) {
-        h += `<div class="bone-section">骨材</div><div class="chip-row wrap" style="margin-top:6px">`;
-        prods.forEach(c => {
+        h += `<div class="chip-row wrap" style="margin-top:6px">`;
+        const uniqueProds = prods.filter((c,i)=>prods.findIndex(p=>p.product===c.product)===i);
+        uniqueProds.forEach(c => {
           const key=c.brand+'|'+c.product, qty=map.get(key)||0, on=qty>0?' on':'';
-          const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+          const qStr=qty>1?`<span class="bone-qty">*${qty}</span>`:'';
+
           h += `<button type="button" class="chip bone-toggle${on}" data-brand="${c.brand}" data-product="${c.product}" onclick="APP.boneChipClick(this,'${wrapId}','${c.brand.replace(/'/g,"\\'")}','${c.product.replace(/'/g,"\\'")}')">${c.product}${qStr}</button>`;
         });
         h += `</div>`;
@@ -2034,13 +2474,11 @@ const APP = {
     h += `<div class="bone-section" style="margin-top:10px">生長因子</div><div class="chip-row wrap" style="margin-top:6px">`;
     growth.forEach(b => {
       const key='|'+b, qty=map.get(key)||0, on=qty>0?' on':'';
-      const qStr=qty>1?`<span class="bone-qty"> ×${qty}</span>`:'';
+      const qStr=qty>1?`<span class="bone-qty">*${qty}</span>`:'';
       h += `<button type="button" class="chip bone-toggle${on}" data-brand="" data-product="${b}" onclick="APP.boneChipClick(this,'${wrapId}','','${b.replace(/'/g,"\\'")}')">${b}${qStr}</button>`;
     });
     h += `</div>`;
     bwrap.innerHTML = h;
-    const inp = document.getElementById(valId);
-    if (inp) inp.value = implant || '';
     this._updateBoneVal(wrapId);
   },
   initEsBoneChips(type, implant) { this._initBoneWrap('es-bone-wrap','es-bone-val', type, implant); },
@@ -2063,11 +2501,12 @@ const APP = {
     el.classList.add('on');
     document.getElementById('tk-type-val').value = type;
     // Update opname select
-    const sel = document.getElementById('tk-opname');
-    if(sel) {
+    const tkDl2 = document.getElementById('tk-opname-list');
+    if(tkDl2) {
       const names = (SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-      sel.innerHTML = '<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      tkDl2.innerHTML = names.map(n=>`<option value="${n}">`).join('');
     }
+    if(document.getElementById('tk-opname')) document.getElementById('tk-opname').value='';
     APP.initTkBoneChips(type, '');
   },
   // Surgery modal chips
@@ -2078,6 +2517,8 @@ const APP = {
     const wrap=document.getElementById('s-clinicid-wrap');
     if(wrap) wrap.style.display = v==='右昌' ? '' : 'none';
     if(v!=='右昌') { const f=document.getElementById('s-clinicid'); if(f) f.value=''; }
+    const type = document.getElementById('s-type-val')?.value || '';
+    if(type) this._initBoneWrap('s-bone-wrap','s-bone-val',type, document.getElementById('s-bone-val')?.value||'');
   },
   selectType(el,type){
     el.closest('.chip-row').querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');
@@ -2085,9 +2526,10 @@ const APP = {
     this.updateOpDropdowns(type);
   },
   updateOpDropdowns(type){
-    const sel=document.getElementById('s-opname');
     const names=(SHEETS.opCats||[]).filter(c=>c.type.trim()===type).map(c=>c.name);
-    sel.innerHTML='<option value="">選擇手術名稱</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    const sel=document.getElementById('s-opname-sel');
+    if(sel) sel.innerHTML='<option value="">▾ 選</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    document.getElementById('s-opname').value='';
     this._initBoneWrap('s-bone-wrap','s-bone-val', type, '');
   },
 
@@ -2109,6 +2551,19 @@ const APP = {
     }
   },
 
+  toastUndo(msg, undoFn) {
+    this._undoFn = undoFn;
+    clearTimeout(this._undoTimer);
+    const el = document.getElementById('toast-undo');
+    el.querySelector('.tu-msg').textContent = msg;
+    el.classList.add('show');
+    this._undoTimer = setTimeout(() => { el.classList.remove('show'); this._undoFn = null; }, 4000);
+  },
+  async doUndo() {
+    clearTimeout(this._undoTimer);
+    document.getElementById('toast-undo').classList.remove('show');
+    if (this._undoFn) { const fn = this._undoFn; this._undoFn = null; try { await fn(); } catch(e) { this.toast('❌ '+e.message); } }
+  },
   toast(msg){
     const el=document.getElementById('toast');
     el.textContent=msg; el.classList.add('show');

@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok:false, error:'Method not allowed' });
 
   try {
-    const { images, opNames, boneItems, abbrevList, brandProducts } = req.body || {};
+    const { images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts } = req.body || {};
     console.log('[parse-image] images count:', images?.length);
     if (!images?.length) return res.status(400).json({ ok:false, error:'No images provided' });
 
@@ -61,43 +61,47 @@ module.exports = async (req, res) => {
       parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
     }
 
-    parts.push({ text: `這是台灣醫院手術排程系統（ORRZ301）截圖。
-畫面中有黃色背景彈出框，每個代表一位病人的手術資料。
-【重要】只讀黃色框內文字，背景的白色欄位、粉紅色列、其他欄位的文字一律完全忽略，即使背景有人名也不可讀取。
+    parts.push({ text: `台灣醫院手術排程系統（ORRZ301）截圖。
 
-從黃色框擷取以下資料：
+黃色彈出框的固定格式（第一行必為「狀態:已排程」）：
+  狀態:已排程
+  病患:＜病歷號＞ ＜姓名＞
+  來源:...
+  時間:...
+  麻醉方式:...
+  手術診斷:...
+  手術批價碼:...
+  備註:...
 
-1. 病患: 黃色框內「病患:」後面的內容，格式為「病歷號 姓名」，病歷號是純數字；姓名通常為2至4個中文字，請逐字仔細讀取，不可遺漏任何一個字。
-   【注意】姓名只能來自黃色框內「病患:」欄位，絕對不可使用框外背景的任何名字。
+【重要】每張圖片含一個黃色彈出框，每張圖片回傳一筆資料（3張圖片→3筆）。
+背景白色欄位（格式「病歷號 醫師名 _病患名」）一律忽略，即使內容與黃色框相似也不可讀取。
+唯一例外：左上方「手術日期」欄位可讀取。
 
-2. 日期: 畫面最上方「手術日期」欄位的民國年數字（如1150612代表民國115年6月12日）
+擷取該黃色框的以下欄位（不確定來源則填null/[]）：
 
-3. 手術批價碼: 「手術批價碼:」後面的代碼
-   - 代碼格式範例：「64087-64087C 腱鞘囊腫摘出術」→ 只取「64087」（開頭的純數字部分）
-   - 多組代碼用「-」或「、」或「,」分隔，例如「64015-64032」→ 取「64015」和「64032」
-   - 每組只取開頭的純數字，忽略後面的英文字母和中文說明
-   - 若無批價碼則回傳空陣列
+1. mrn: 「病患:」標籤後的純數字（通常7-10位，含前導零，如0000277662）
+2. name: 「病患:」標籤後的姓名（2-4個中文字，逐字讀取勿遺漏）
+3. date_roc: 左上方「手術日期」民國年數字（如1151120）
+4. codes: 「手術批價碼:」標籤後的代碼陣列。手術代碼固定5位純數字（如64286、64087），每組只取開頭5位數字（64286-關節鏡下旋轉肌→64286）；多組以-/、/,分隔；病歷號不是代碼；無則[]
+5. note: 「備註:」標籤後的完整文字
+6. opName: 查表流程：手術批價碼（5位數）→ 以下代碼對照表查出類型 → 從類型清單選最接近名稱；若代碼查無類型或清單無符合，再從「手術批價碼:」的說明文字推斷（VP=vertebroplasty, KP=kyphoplasty）；不可用背景欄位文字；完全無法判斷則null${codeTypes && Object.keys(codeTypes).length ? `
+   代碼→類型: ${JSON.stringify(codeTypes)}` : ''}${opCatsByType && Object.keys(opCatsByType).length ? `
+   類型→名稱清單:
+${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
+7. location: 手術部位。脊椎手術→椎節（如L3、T12、L3-L4）；四肢/關節→Rt/Lt/Bilateral；無法辨識→null
+8. implants: 從備註辨識骨材/生長因子及廠牌，回傳陣列；無則[]${boneItems && boneItems.length ? `
+   骨材縮寫：「縮寫*N」→「完整名 ×N」；縮寫前若有多餘的;、,、*、空格等分隔符應忽略（如「;*I*2」=「I*2」=「完整名 ×2」）${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
+   骨材清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
+   廠牌：備註只有廠牌時，結合手術context推斷產品後加入implants（如「AO」+Radius→「AO Radius」），查無則只用廠牌名
+   廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
 
-4. 備註: 「備註:」後面的完整文字（不包含「備註:」本身）
-${opNames && opNames.length ? `
-5. 手術名稱: 從圖片文字辨識手術名稱，從以下清單選最接近的一個，無法辨識則回傳null
-   清單: ${opNames.join('、')}` : ''}
+備註解析範例：
+  「L3 VP; depuy (PASS)」→ location=L3、opName=vertebroplasty、implants=["Depuy"]
+  「Rt radius; AO」→ location=Rt、opName=Forearm、implants=["AO"]
 
-6. 部位: 從圖片文字辨識手術部位，只回傳 Rt、Lt、Bilateral 其中一個，無法辨識則回傳null
-   - Rt = 右側, Lt = 左側, Bilateral = 雙側
-${boneItems && boneItems.length ? `
-7. 骨材/生長因子: 從備註文字辨識使用的骨材或生長因子（備註常用縮寫），從以下清單選出所有符合的項目，回傳陣列；無法辨識或備註未提及則回傳空陣列${abbrevList && abbrevList.length ? `
-   縮寫對照（格式 縮寫=完整名）：${abbrevList.join('、')}` : ''}
-   數量解析：若備註為「縮寫*數字」如「I*2」→ 回傳「完整名稱 ×數字」（例：「Iconix ×2」）；若無數字則不加 ×N；縮寫不分大小寫（OCR常將大寫I誤辨為小寫i或l，如「i*2」=「I*2」）
-   清單: ${boneItems.join('、')}` : ''}
-${brandProducts && Object.keys(brandProducts).length ? `
-8. 廠牌產品推斷: 若備註只寫廠牌（如「AO」），可結合手術名稱context（如Radius fracture→推斷AO Radius）從以下廠牌產品對照中回傳「廠牌 產品名稱」字串；若無法推斷則只回傳廠牌名稱
-   廠牌產品對照（JSON）: ${JSON.stringify(brandProducts)}` : ''}
-
-只回傳JSON，不加任何說明文字：
-{"patients":[{"mrn":"病歷號純數字","name":"姓名","date_roc":"1150612","codes":["64087","64015"],"note":"備註文字","opName":"手術名稱或null","location":"Rt或Lt或Bilateral或null","implants":["骨材1","骨材2"]}]}
-
-若無黃色框則回傳：{"patients":[]}` });
+只回傳JSON，不加說明：
+{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"L3或Rt或null","implants":["Depuy","Iconix ×2"]}]}
+若無黃色框：{"patients":[]}` });
 
     console.log('[parse-image] calling Gemini, parts:', parts.length);
     const result = await geminiRequest({ contents:[{ parts }], generationConfig:{ temperature:0.1 } });

@@ -20,7 +20,7 @@ const SHEETS = {
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
 
   // ── Cache helpers ──
-  _CACHE_VER: 'v3',  // 欄位結構異動時遞增，強制清除所有舊快取
+  _CACHE_VER: 'v4',  // 欄位結構異動時遞增，強制清除所有舊快取
   _STALE_TTL: 30 * 60 * 1000,  // 30 分鐘：超過視為 stale，返回快取並強制背景刷新
   initCache() {
     if (localStorage.getItem('ortho_cacheVer') !== this._CACHE_VER) {
@@ -45,6 +45,9 @@ const SHEETS = {
     const r = this.loadCacheRaw(key);
     return r ? r.data : null;
   },
+
+  // Prefix with ' so Sheets stores the value as text, not as a date serial
+  _d(s) { return s ? "'" + s : ''; },
 
   // ── Core read/write ──
   async read(tab, range) {
@@ -114,42 +117,43 @@ const SHEETS = {
   // ── Loaders ──
   async loadOpRecords() {
     const load = async () => {
-      const hRow = await this.read(this.T.op, 'A1:J1');
+      const hRow = await this.read(this.T.op, 'A1:K1');
       const h = (hRow[0] || []).map(x => (x||'').trim());
       const ci = (names, fb) => { for (const n of names) { const i = h.indexOf(n); if (i>=0) return i; } return fb; };
       const iD=ci(['日期'],0), iA=ci(['院區'],1), iMR=ci(['病歷號'],2),
             iCL=ci(['診所ID'],3), iN=ci(['姓名'],4),
             iT=ci(['類型'],5), iON=ci(['名稱','術式'],6),
-            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9);
-      const rows = await this.read(this.T.op, 'A2:J500');
-      return rows.reduce((acc,r,i) => {
+            iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9),
+            iK=ci(['代碼'],10);
+      const rows = await this.read(this.T.op, 'A2:K500');
+      return rows.reduce((acc,r,i)=>{
         if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
           clinicId:r[iCL]||'', name:r[iN]||'',
           type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
-          implant:r[iI]||'', note:r[iNt]||'' });
+          implant:r[iI]||'', note:r[iNt]||'', codes:r[iK]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('op', load);
   },
 
   async loadTrackRecords() {
     const load = async () => {
-      const hRow = await this.read(this.T.track, 'A1:J1');
+      const hRow = await this.read(this.T.track, 'A1:K1');
       const h = (hRow[0]||[]).map(x=>(x||'').trim());
       const ci = (names, fb) => { for(const n of names){const i=h.indexOf(n);if(i>=0)return i;} return fb; };
       const iD=ci(['日期'],0),iA=ci(['院區'],1),iMR=ci(['病歷號'],2),
             iClinic=ci(['診所ID'],3),iN=ci(['姓名'],4),iT=ci(['類型'],5),
             iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),
-            iNt=ci(['備註'],9);
-      const rows = await this.read(this.T.track, 'A2:J500');
-      return rows.reduce((acc,r,i) => {
+            iNt=ci(['備註'],9),iK=ci(['代碼'],10);
+      const rows = await this.read(this.T.track, 'A2:K500');
+      return rows.reduce((acc,r,i)=>{
         if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
           clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
           opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
-          note:r[iNt]||'' });
+          note:r[iNt]||'', codes:r[iK]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('track', load);
   },
@@ -157,28 +161,27 @@ const SHEETS = {
   async loadMatRecords() {
     const load = async () => {
       const rows = await this.read(this.T.matRec, 'A2:G500');
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(r[0]) acc.push({ _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
           price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||'' });
         return acc;
-      }, []).sort((a,b)=>b.date.localeCompare(a.date));
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('matRec2', load);
   },
 
   async loadMatProducts() {
     const load = async () => {
-      const rows = await this.read(this.T.matProd, 'A2:G300');
+      const rows = await this.read(this.T.matProd, 'A2:H300');
       if (!rows.length) return [];
       // 自動偵測：A欄若是 itemId 格式（如 A1、Ru1）則有 id 欄，否則直接從廠牌開始
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(hasId ? r[1] : r[0]) acc.push(hasId
-          ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'' }
-          : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'' }
-        );
+          ? { _row:i+2, itemId:r[0]||'', brand:r[1]||'', product:r[2]||'', type:r[3]||'', price:r[4]||'', hospital:r[5]||'', abbrev:r[6]||'', surgRecord:r[7]||'' }
+          : { _row:i+2, itemId:'',       brand:r[0]||'', product:r[1]||'', type:r[2]||'', price:r[3]||'', hospital:r[4]||'', abbrev:r[5]||'', surgRecord:r[6]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('matProd', load);
   },
@@ -186,10 +189,10 @@ const SHEETS = {
   async loadOpCodes() {
     const load = async () => {
       const rows = await this.read(this.T.opCode, 'A2:F200');
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(r[0]) acc.push({ _row:i+2, code:r[0]||'', name:r[1]||'', price:r[2]||'', area:r[3]||'', type:r[4]||'', itemId:r[5]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('opCode', load);
   },
@@ -197,11 +200,11 @@ const SHEETS = {
   async loadCodeRecords() {
     const load = async () => {
       const rows = await this.read(this.T.codeRec, 'A2:H500');
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(r[0]) acc.push({ _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-          area:r[4]||'', qty:r[5]||'', type:r[6]||'', todayNew:r[7]||'' });
+          area:r[4]||'', qty:r[5]||'', type:r[6]||'', patient:r[7]||'' });
         return acc;
-      }, []).sort((a,b)=>b.date.localeCompare(a.date));
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
   },
@@ -210,11 +213,11 @@ const SHEETS = {
     const load = async () => {
       // A=月份,B=醫材,C=中正,D=門診,E=右昌,F=預估
       const rows = await this.read(this.T.estimate, 'A2:F50');
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(r[0]) acc.push({ _row:i+2, month:r[0]||'', material:r[1]||'', zhongzheng:r[2]||'',
           clinic:r[3]||'', youchang:r[4]||'', estimate:r[5]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('estimate', load);
   },
@@ -225,26 +228,25 @@ const SHEETS = {
       if (!rows.length) return [];
       // A欄若是 itemId 格式則跳過，否則直接讀產品名
       const hasId = /^[A-Za-z]\d+$/.test(String(rows.find(r=>r[0])?.[0]||'').trim());
-      return rows.reduce((acc,r,i) => {
+      return rows.reduce((acc,r,i)=>{
         if(hasId ? r[1] : r[0]) acc.push(hasId
           ? { _row:i+2, itemId:r[0]||'', name:r[1]||'', price:r[2]||'' }
-          : { _row:i+2, itemId:'',       name:r[0]||'', price:r[1]||'' }
-        );
+          : { _row:i+2, itemId:'',       name:r[0]||'', price:r[1]||'' });
         return acc;
-      }, []);
+      },[]);
     };
     return this.cached('clinicP', load);
   },
 
   async loadClinicRecords() {
-    // 門診: A=日期,B=產品,C=單價,D=數量,E=今日新增
+    // 門診: A=日期,B=產品,C=單價,D=數量
     const load = async () => {
-      const rows = await this.read(this.T.clinic, 'A2:E500');
-      return rows.reduce((acc,r,i) => {
+      const rows = await this.read(this.T.clinic, 'A2:D500');
+      return rows.reduce((acc,r,i)=>{
         if(r[0]) acc.push({ _row:i+2, date:r[0]||'', product:r[1]||'',
-          price:r[2]||'', qty:r[3]||'', todayNew:r[4]||'' });
+          price:r[2]||'', qty:r[3]||'' });
         return acc;
-      }, []).sort((a,b)=>b.date.localeCompare(a.date));
+      },[]).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('clinic2', load);
   },
@@ -252,11 +254,12 @@ const SHEETS = {
   async loadCategories() {
     try {
       const [opRows, prods] = await Promise.all([
-        this.cached('opCat', () => this.read(this.T.opCat, 'A2:B200')),
+        this.read(this.T.opCat, 'A2:B200'),
         this.loadMatProducts()
       ]);
       this.opCats = opRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), name:(r[1]||'').trim()}));
       // boneCats: {brand, product, type, abbrev} from 骨材產品
+      this.matProds = prods;
       this.boneCats = prods.filter(p => p.type !== '生長因子');
       this.growthFactors = prods.filter(p => p.type === '生長因子').map(p => p.product);
       // 縮寫對照表 {縮寫: 產品名稱}
@@ -277,24 +280,32 @@ const SHEETS = {
 
   // ── Writers ──
   async updateSurgery(row, d) {
-    await this.put(this.T.op+'!A'+row+':J'+row, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    await this.put(this.T.op+'!A'+row+':J'+row, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_op');
   },
 
   async updateTrack(row, d) {
-    await this.put(this.T.track+'!A'+row+':J'+row, [[d.date,d.area,d.mrn,d.clinicId,d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    await this.put(this.T.track+'!A'+row+':J'+row, [[this._d(d.date),d.area,d.mrn,d.clinicId,d.name,d.type,d.opName,d.location,d.implant,d.note]]);
     localStorage.removeItem('ortho_track');
   },
 
   async updateMatRow(row, d) {
-    const done = d.done !== undefined ? d.done : 'false';
-    await this.put(this.T.matRec+'!A'+row+':G'+row, [[d.date,d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
+    const done = (d.done === 'true') ? '' : '未完成';
+    await this.put(this.T.matRec+'!A'+row+':G'+row, [[this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'',done]]);
     localStorage.removeItem('ortho_matRec2');
   },
 
   async setDone(row) {
-    await this.put(this.T.matRec+'!G'+row, [['true']]);
+    await this.put(this.T.matRec+'!G'+row, [['']]);
     localStorage.removeItem('ortho_matRec2');
+  },
+  async setUndone(row) {
+    await this.put(this.T.matRec+'!G'+row, [['未完成']]);
+    localStorage.removeItem('ortho_matRec2');
+  },
+  async setUndoneRows(rows) {
+    for (const row of rows) await this.put(this.T.matRec+'!G'+row, [['未完成']]);
+    if (rows.length) localStorage.removeItem('ortho_matRec2');
   },
 
   async setDoneForMonth(month, brand, product) {
@@ -305,22 +316,20 @@ const SHEETS = {
       const rowMonth = rowDate.length >= 7 ? rowDate.substring(0, 7) : rowDate;
       const rowBrand = (recs[i][1]||'').trim();
       const rowProd  = (recs[i][2]||'').trim();
-      const isDone   = (recs[i][6]||'').toLowerCase() === 'true';
+      const isDone   = !(recs[i][6]||'').trim();
       if (rowMonth === month && rowBrand === brand && rowProd === product && !isDone) {
         updates.push(i + 2);
       }
     }
-    if (!updates.length) return;
-    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
-    const r = await fetch(url, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
-        data: updates.map(row => ({ range: `${this.T.matRec}!G${row}`, values: [['true']] })) }) });
-    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
-    localStorage.removeItem('ortho_matRec2');
+    for (const row of updates) {
+      await this.put(this.T.matRec+'!G'+row, [['']]);
+    }
+    if (updates.length) localStorage.removeItem('ortho_matRec2');
+    return updates;
   },
 
   async addMatFromSurgery(d) {
-    const row = [d.date, d.brand, d.product, d.price||'', d.qty||1, d.patient, 'false'];
+    const row = [this._d(d.date), d.brand, d.product, d.price||'', d.qty||1, d.patient, '未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
@@ -338,13 +347,37 @@ const SHEETS = {
         updates.push(i + 2);
       }
     }
-    if (!updates.length) return;
-    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
-    const r = await fetch(url, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
-        data: updates.map(row => ({ range: `${this.T.matRec}!F${row}`, values: [[newName]] })) }) });
-    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
-    localStorage.removeItem('ortho_matRec2');
+    for (const row of updates) {
+      await this.put(this.T.matRec+'!F'+row, [[newName]]);
+    }
+    if (updates.length) localStorage.removeItem('ortho_matRec2');
+  },
+
+  _normDate(s) {
+    if (!s) return '';
+    const m1 = String(s).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (m1) return `${m1[1]}/${m1[2].padStart(2,'0')}/${m1[3].padStart(2,'0')}`;
+    const m2 = String(s).match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    if (m2) return `${m2[1]}/${m2[2].padStart(2,'0')}/${m2[3].padStart(2,'0')}`;
+    return String(s).trim();
+  },
+  async deleteMatRecByPatientDate(name, date) {
+    if (!name || !date) return 0;
+    const normD = this._normDate(date);
+    const recs = await this.read(this.T.matRec, 'A2:G500');
+    const toDelete = [];
+    for (let i = 0; i < recs.length; i++) {
+      const rowDate = this._normDate(recs[i][0]);
+      const rowPat  = (recs[i][5]||'').trim();
+      if (rowDate === normD && rowPat === name.trim()) {
+        toDelete.push(i + 2);
+      }
+    }
+    for (const row of toDelete) {
+      await this.clearRow(this.T.matRec, row, 'A', 'G');
+    }
+    if (toDelete.length) localStorage.removeItem('ortho_matRec2');
+    return toDelete.length;
   },
 
   // OP代碼更新 + 同步代碼紀錄
@@ -416,46 +449,67 @@ const SHEETS = {
   },
 
   async addOp(d) {
-    const r = await this.append(this.T.op, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.op, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_op'); return r;
   },
 
   async addTrack(d) {
-    const r = await this.append(this.T.track, [[d.date,d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note]]);
+    const r = await this.append(this.T.track, [[this._d(d.date),d.area,d.mrn||'',d.clinicId||'',d.name,d.type,d.opName,d.location,d.implant,d.note,d.codes||'']]);
     localStorage.removeItem('ortho_track'); return r;
   },
 
+  async updateOpCodes(row, codes) {
+    await this.put(this.T.op+'!K'+row, [[codes]]);
+    localStorage.removeItem('ortho_op');
+  },
+
+  async deleteCodesByPatient(month, name) {
+    if (!month || !name) return 0;
+    const recs = await this.read(this.T.codeRec, 'A2:H500');
+    const toDelete = [];
+    for (let i = 0; i < recs.length; i++) {
+      const row = recs[i];
+      if (!row[0]) continue;
+      const recMonth = String(row[0]).substring(0,7);
+      const recPatient = row[7] || '';
+      if (recMonth === month && recPatient === name) toDelete.push(i+2);
+    }
+    for (const r of [...toDelete].reverse()) await this.clearRow(this.T.codeRec, r, 'A', 'H');
+    if (toDelete.length) localStorage.removeItem('ortho_codeRec2');
+    return toDelete.length;
+  },
+
   async addMat(d) {
-    const row = [d.date,d.brand,d.product,d.price,d.qty,d.patient||'門診','false'];
+    const row = [this._d(d.date),d.brand,d.product,d.price,d.qty,d.patient||'門診','未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async quickAddMat(brand, product, price) {
-    const row = [this.nowDate(),brand,product,price,'1','門診','false'];
+    const row = [this._d(this.nowDate()),brand,product,price,'1','門診','未完成'];
     const r = await this.append(this.T.matRec, [row]);
     localStorage.removeItem('ortho_matRec2'); return r;
   },
 
   async addCode(d) {
-    const r = await this.append(this.T.codeRec, [[d.date,d.name,d.price,d.code,d.area,d.qty,d.type||'','']]);
+    const r = await this.append(this.T.codeRec, [[this._d(d.date),d.name,d.price,d.code,d.area,d.qty,d.type||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddCode(d) {
     const date = d.date || this.nowDate();
-    const r = await this.append(this.T.codeRec, [[date,d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
+    const r = await this.append(this.T.codeRec, [[this._d(date),d.name,d.price,d.code,d.area,'1',d.type||'',d.patient||'']]);
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
   async quickAddClinic(name, price) {
     const cleanP = parseFloat(String(price).replace(/,/g,'')) || 0;
-    const r = await this.append(this.T.clinic, [[this.nowDate(),name,cleanP,'1','']]);
+    const r = await this.append(this.T.clinic, [[this._d(this.nowMonth()),name,cleanP,'1']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
   async addClinic(d) {
-    const r = await this.append(this.T.clinic, [[d.date,d.product,d.price||'',d.qty,'']]);
+    const r = await this.append(this.T.clinic, [[this._d(d.date),d.product,d.price||'',d.qty,'']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 

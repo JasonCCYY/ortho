@@ -1,5 +1,5 @@
 // ortho-v4：每次更新版本號可強制清除舊快取
-const CACHE = 'ortho-v4';
+const CACHE = 'ortho-v5';
 
 // 預快取的靜態資源（不含 JS/CSS，改用 network-first）
 const PRECACHE = [
