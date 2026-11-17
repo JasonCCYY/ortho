@@ -47,10 +47,7 @@ const APP = {
     try { SHEETS.loadCategories(); } catch(e) { console.error('[APP] loadCategories:', e); }
     try { this.switchTab('surgery', false); } catch(e) { console.error('[APP] switchTab:', e); }
     console.log('[APP] onAuthSuccess done');
-    setTimeout(() => { if(AUTH.ok) SHEETS.loadTrackRecords().catch(()=>{}); }, 1500);
-    setTimeout(() => { if(AUTH.ok) SHEETS.loadClinicRecords().catch(()=>{}); }, 2500);
-    // After 3s, refresh current view from network
-    setTimeout(() => { if(AUTH.ok && !AUTH._refreshing) this.refresh(); }, 3000);
+    Promise.all([SHEETS.loadTrackRecords(), SHEETS.loadClinicRecords()]).catch(()=>{});
   },
 
   // ── Helpers ──
@@ -670,6 +667,7 @@ const APP = {
         implant: '',
         note: p.note,
       });
+      this._markAddedToday('sx', p.date+'|'+p.name);
 
       // 新增代碼紀錄（每個批價碼一筆）
       for(const c of (p.matchedCodes || [])) {
@@ -780,6 +778,11 @@ const APP = {
   closeSearch() {
     document.getElementById('modal-search').classList.remove('open');
   },
+  _searchTimer: null,
+  scheduleSearch(q) {
+    clearTimeout(this._searchTimer);
+    this._searchTimer = setTimeout(() => this.doSearch(q), 180);
+  },
   async doSearch(q) {
     const el = document.getElementById('search-results');
     q = q.trim();
@@ -787,21 +790,14 @@ const APP = {
     el.innerHTML = '<div class="load-msg">搜尋中...</div>';
     try {
       const kw = q.toLowerCase();
-      const results = [];
-      // Search op records (surgery)
-      const ops = await SHEETS.loadOpRecords();
-      const opHits = ops.filter(r => [r.date,r.name,r.mrn,r.type,r.opName,r.location,r.implant,r.note].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
-      // Search mat records
-      const mats = await SHEETS.loadMatRecords();
-      const matHits = mats.filter(r => [r.brand,r.product,r.date].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
-      // Search code records
-      const codes = await SHEETS.loadCodeRecords();
-      const codeHits = codes.filter(r => [r.name,r.code,r.area,r.date].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
-      // Search clinic records
-      const clinic = await SHEETS.loadClinicRecords();
+      const [ops, mats, codes, clinic, tracks] = await Promise.all([
+        SHEETS.loadOpRecords(), SHEETS.loadMatRecords(), SHEETS.loadCodeRecords(),
+        SHEETS.loadClinicRecords(), SHEETS.loadTrackRecords()
+      ]);
+      const opHits    = ops.filter(r => [r.date,r.name,r.mrn,r.type,r.opName,r.location,r.implant,r.note].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
+      const matHits   = mats.filter(r => [r.brand,r.product,r.date].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
+      const codeHits  = codes.filter(r => [r.name,r.code,r.area,r.date].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
       const clinicHits = clinic.filter(r => [r.product,r.date].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
-      // Search track records
-      const tracks = await SHEETS.loadTrackRecords();
       const trackHits = tracks.filter(r => [r.name,r.mrn,r.type,r.opName,r.location,r.date,r.area].some(v=>String(v||'').toLowerCase().includes(kw))).slice(0,30);
 
       if(!opHits.length && !matHits.length && !codeHits.length && !clinicHits.length && !trackHits.length) {
@@ -904,12 +900,14 @@ const APP = {
         return b._row - a._row;
       });
       if(!sorted.length) { el.innerHTML = `<tr><td colspan="8">${this.empty()}</td></tr>`; return; }
+      const monthGroups = {};
+      sorted.forEach(r => { const m=this.getMonth(r.date); (monthGroups[m]=monthGroups[m]||[]).push(r); });
       let rows = '', lastM = '';
       sorted.forEach(r => {
         const m = this.getMonth(r.date);
         if(m!==lastM) {
           lastM=m;
-          const ms=sorted.filter(x=>this.getMonth(x.date)===m);
+          const ms=monthGroups[m]||[];
           const zh=ms.filter(x=>x.area==='中正').length, yc=ms.filter(x=>x.area==='右昌').length;
           rows += `<tr class="sx-month-row"><td colspan="7">${m} <span class="month-badge">${ms.length}（${zh}/${yc}）</span></td></tr>`;
         }
@@ -1923,7 +1921,7 @@ const APP = {
   },
   _parseImplantToSelections(implant, boneCats) {
     if (!implant) return [];
-    return implant.split(' , ').map(s=>s.trim()).filter(Boolean).map(part => {
+    return implant.split(/\s*,\s*/).map(s=>s.trim()).filter(Boolean).map(part => {
       const qm = part.match(/^(.+?)\s+×(\d+)$/);
       const text = qm ? qm[1].trim() : part;
       const qty  = qm ? parseInt(qm[2]) : 1;

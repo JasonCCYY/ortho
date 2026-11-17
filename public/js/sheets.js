@@ -121,12 +121,13 @@ const SHEETS = {
             iT=ci(['類型'],5), iON=ci(['名稱','術式'],6),
             iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9);
       const rows = await this.read(this.T.op, 'A2:J500');
-      return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
-        _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
-        clinicId:r[iCL]||'', name:r[iN]||'',
-        type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
-        implant:r[iI]||'', note:r[iNt]||''
-      }));
+      return rows.reduce((acc,r,i) => {
+        if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
+          clinicId:r[iCL]||'', name:r[iN]||'',
+          type:r[iT]||'', opName:r[iON]||'', location:r[iL]||'',
+          implant:r[iI]||'', note:r[iNt]||'' });
+        return acc;
+      }, []);
     };
     return this.cached('op', load);
   },
@@ -141,12 +142,13 @@ const SHEETS = {
             iON=ci(['名稱','術式'],6),iL=ci(['部位'],7),iI=ci(['骨材'],8),
             iNt=ci(['備註'],9);
       const rows = await this.read(this.T.track, 'A2:J500');
-      return rows.filter(r=>r[iD]||r[iN]).map((r,i)=>({
-        _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
-        clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
-        opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
-        note:r[iNt]||''
-      }));
+      return rows.reduce((acc,r,i) => {
+        if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
+          clinicId:r[iClinic]||'', name:r[iN]||'', type:r[iT]||'',
+          opName:r[iON]||'', location:r[iL]||'', implant:r[iI]||'',
+          note:r[iNt]||'' });
+        return acc;
+      }, []);
     };
     return this.cached('track', load);
   },
@@ -154,10 +156,11 @@ const SHEETS = {
   async loadMatRecords() {
     const load = async () => {
       const rows = await this.read(this.T.matRec, 'A2:G500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
-        price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i) => {
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', brand:r[1]||'', product:r[2]||'',
+          price:r[3]||'', qty:r[4]||'', patient:r[5]||'', done:r[6]||'' });
+        return acc;
+      }, []).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('matRec2', load);
   },
@@ -189,10 +192,11 @@ const SHEETS = {
   async loadCodeRecords() {
     const load = async () => {
       const rows = await this.read(this.T.codeRec, 'A2:H500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
-        area:r[4]||'', qty:r[5]||'', type:r[6]||'', todayNew:r[7]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i) => {
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', name:r[1]||'', price:r[2]||'', code:r[3]||'',
+          area:r[4]||'', qty:r[5]||'', type:r[6]||'', todayNew:r[7]||'' });
+        return acc;
+      }, []).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('codeRec2', load);
   },
@@ -227,10 +231,11 @@ const SHEETS = {
     // 門診: A=日期,B=產品,C=單價,D=數量,E=今日新增
     const load = async () => {
       const rows = await this.read(this.T.clinic, 'A2:E500');
-      return rows.filter(r=>r[0]).map((r,i)=>({
-        _row:i+2, date:r[0]||'', product:r[1]||'',
-        price:r[2]||'', qty:r[3]||'', todayNew:r[4]||''
-      })).sort((a,b)=>b.date.localeCompare(a.date));
+      return rows.reduce((acc,r,i) => {
+        if(r[0]) acc.push({ _row:i+2, date:r[0]||'', product:r[1]||'',
+          price:r[2]||'', qty:r[3]||'', todayNew:r[4]||'' });
+        return acc;
+      }, []).sort((a,b)=>b.date.localeCompare(a.date));
     };
     return this.cached('clinic2', load);
   },
@@ -238,7 +243,7 @@ const SHEETS = {
   async loadCategories() {
     try {
       const [opRows, prods] = await Promise.all([
-        this.read(this.T.opCat, 'A2:B200'),
+        this.cached('opCat', () => this.read(this.T.opCat, 'A2:B200')),
         this.loadMatProducts()
       ]);
       this.opCats = opRows.filter(r=>r[0]).map(r=>({type:(r[0]||'').trim(), name:(r[1]||'').trim()}));
@@ -296,10 +301,13 @@ const SHEETS = {
         updates.push(i + 2);
       }
     }
-    for (const row of updates) {
-      await this.put(this.T.matRec+'!G'+row, [['true']]);
-    }
-    if (updates.length) localStorage.removeItem('ortho_matRec2');
+    if (!updates.length) return;
+    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
+    const r = await fetch(url, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
+        data: updates.map(row => ({ range: `${this.T.matRec}!G${row}`, values: [['true']] })) }) });
+    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
+    localStorage.removeItem('ortho_matRec2');
   },
 
   async addMatFromSurgery(d) {
@@ -321,10 +329,13 @@ const SHEETS = {
         updates.push(i + 2);
       }
     }
-    for (const row of updates) {
-      await this.put(this.T.matRec+'!F'+row, [[newName]]);
-    }
-    if (updates.length) localStorage.removeItem('ortho_matRec2');
+    if (!updates.length) return;
+    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
+    const r = await fetch(url, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
+        data: updates.map(row => ({ range: `${this.T.matRec}!F${row}`, values: [[newName]] })) }) });
+    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
+    localStorage.removeItem('ortho_matRec2');
   },
 
   // OP代碼更新 + 同步代碼紀錄
@@ -341,10 +352,14 @@ const SHEETS = {
           updates.push({ row: i+2, price: cleanP });
         }
       }
-      for (const u of updates) {
-        await this.put(this.T.codeRec+'!C'+u.row, [[u.price]]);
+      if (updates.length) {
+        const bUrl = `${this.BASE}/${this.ID}/values:batchUpdate`;
+        const br = await fetch(bUrl, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
+            data: updates.map(u => ({ range: `${this.T.codeRec}!C${u.row}`, values: [[u.price]] })) }) });
+        if (!br.ok) throw new Error(`批次更新失敗(${br.status})`);
+        localStorage.removeItem('ortho_codeRec2');
       }
-      localStorage.removeItem('ortho_codeRec2');
     }
   },
 
@@ -370,10 +385,14 @@ const SHEETS = {
           updates.push({ row: i+2 });
         }
       }
-      for (const u of updates) {
-        await this.put(this.T.matRec+'!D'+u.row, [[cleanP]]);
+      if (updates.length) {
+        const bUrl = `${this.BASE}/${this.ID}/values:batchUpdate`;
+        const br = await fetch(bUrl, { method: 'POST', headers: { ...this.hdrs(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'USER_ENTERED',
+            data: updates.map(u => ({ range: `${this.T.matRec}!D${u.row}`, values: [[cleanP]] })) }) });
+        if (!br.ok) throw new Error(`批次更新失敗(${br.status})`);
+        localStorage.removeItem('ortho_matRec2');
       }
-      localStorage.removeItem('ortho_matRec2');
     }
   },
 
