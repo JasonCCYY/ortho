@@ -50,6 +50,9 @@ const APP = {
     try { this.switchTab('surgery', false); } catch(e) { console.error('[APP] switchTab:', e); }
     console.log('[APP] onAuthSuccess done');
     Promise.all([SHEETS.loadTrackRecords(), SHEETS.loadClinicRecords()]).catch(()=>{});
+    SHEETS.loadTodayRecs().then(recs => {
+      recs.forEach(r => this._markLocalOnly(r.type, r.id));
+    }).catch(()=>{});
   },
 
   // ── Helpers ──
@@ -62,6 +65,10 @@ const APP = {
   todayISO() { return new Date().toISOString().split('T')[0]; },
 
   _markAddedToday(type, fp) {
+    this._markLocalOnly(type, fp);
+    SHEETS.addNewRec(type, fp);
+  },
+  _markLocalOnly(type, fp) {
     try {
       const k = 'ortho_new_' + this.today();
       const arr = JSON.parse(localStorage.getItem(k)||'[]');

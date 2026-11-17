@@ -14,6 +14,7 @@ const SHEETS = {
     opCat:    'OP分類',
     boneCat:  '骨材分類',
     track:    '追蹤',
+    newRec:   '新增記錄',
   },
 
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
@@ -456,6 +457,18 @@ const SHEETS = {
   async addClinic(d) {
     const r = await this.append(this.T.clinic, [[d.date,d.product,d.price||'',d.qty,'']]);
     localStorage.removeItem('ortho_clinic2'); return r;
+  },
+
+  // ── 今日新增記錄（跨裝置橘燈同步）──
+  async loadTodayRecs() {
+    try {
+      const today = this.nowDate();
+      const rows = await this.read(this.T.newRec, 'A2:C1000');
+      return rows.filter(r => r[0] === today).map(r => ({ type: r[1]||'', id: r[2]||'' }));
+    } catch(e) { return []; }
+  },
+  async addNewRec(type, id) {
+    try { await this.append(this.T.newRec, [[this.nowDate(), type, id]]); } catch(e) {}
   },
 
   async deleteRow(tab, row, c1, c2, cacheKey, usageId, uidRange, uidCol) {
