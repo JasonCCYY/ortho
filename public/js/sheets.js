@@ -353,6 +353,27 @@ const SHEETS = {
     if (updates.length) localStorage.removeItem('ortho_matRec2');
   },
 
+  async updatePatientInCodeRec(oldName, newName, date) {
+    if (!oldName || !newName || oldName === newName) return;
+    const targetMonth = date ? date.substring(0, 7) : '';
+    const recs = await this.read(this.T.codeRec, 'A2:H500');
+    const updates = [];
+    for (let i = 0; i < recs.length; i++) {
+      const rowDate = (recs[i][0]||'').trim();
+      const rowPatient = (recs[i][7]||'').trim();
+      const rowMonth = rowDate.length >= 7 ? rowDate.substring(0, 7) : rowDate;
+      if (rowPatient === oldName && (!targetMonth || rowMonth === targetMonth))
+        updates.push(i + 2);
+    }
+    if (!updates.length) return;
+    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
+    const r = await fetch(url, { method:'POST', headers:{...this.hdrs(),'Content-Type':'application/json'},
+      body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+        data: updates.map(row => ({ range:`${this.T.codeRec}!H${row}`, values:[[newName]] })) }) });
+    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
+    localStorage.removeItem('ortho_codeRec2');
+  },
+
   _normDate(s) {
     if (!s) return '';
     const m1 = String(s).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);

@@ -1935,6 +1935,7 @@ const APP = {
         const oldDate = r.date || '';
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
+          try { await SHEETS.updatePatientInCodeRec(oldName, newName, esDate); } catch(e2) {}
         }
         if (oldDate && esDate && oldDate !== esDate) {
           try { await SHEETS.updateMatRecDate(newName, oldDate, esDate); } catch(e2) {}
