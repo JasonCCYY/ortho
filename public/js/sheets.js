@@ -14,7 +14,7 @@ const SHEETS = {
     opCat:    'OP分類',
     boneCat:  '骨材分類',
     track:    '追蹤',
-    newRec:   '新增紀錄',
+    newRec:   '新增記錄',
   },
 
   hdrs() { return { Authorization: `Bearer ${AUTH.accessToken}` }; },
