@@ -1941,13 +1941,22 @@ const APP = {
         }
         // Sync codes: update K col + OP代碼記錄
         const editCodeStr = (this._editOpCodes||[]).map(c=>c.code).join(',');
+        const origCodeStr = (r.codes||'').replace(/\s/g,'');
         await SHEETS.updateOpCodes(r._row, editCodeStr);
+        const codesChanged = editCodeStr !== origCodeStr;
+        const dateChanged = oldDate && esDate && oldDate !== esDate;
         try {
-          await SHEETS.deleteCodesByPatient(r.date.substring(0,7), newName);
           const editArea = document.getElementById('es-area-val').value || r.area || '中正';
-          for(const c of (this._editOpCodes||[])) {
-            await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||'', patient:newName, date:esDate});
-            this._markAddedToday('code', esDate+'|'+c.code);
+          if (!codesChanged && dateChanged) {
+            // 只改日期：直接更新代碼紀錄的日期欄位
+            await SHEETS.updateCodeRecDate(newName, oldDate, esDate);
+          } else if (codesChanged || (this._editOpCodes||[]).length > 0) {
+            // 代碼有變：刪除舊記錄重新寫入
+            await SHEETS.deleteCodesByPatient(oldDate ? oldDate.substring(0,7) : esDate.substring(0,7), newName);
+            for(const c of (this._editOpCodes||[])) {
+              await SHEETS.quickAddCode({name:c.name, code:c.code, price:c.price, area:editArea, type:c.type||'', patient:newName, date:esDate});
+              this._markAddedToday('code', esDate+'|'+c.code);
+            }
           }
         } catch(e2) { this.toast('⚠️ 代碼同步失敗'); }
         this._editOpCodes = [];

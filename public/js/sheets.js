@@ -482,6 +482,25 @@ const SHEETS = {
     localStorage.removeItem('ortho_op');
   },
 
+  async updateCodeRecDate(name, oldDate, newDate) {
+    if (!name || !oldDate || !newDate || oldDate === newDate) return 0;
+    const normOld = this._normDate(oldDate);
+    const recs = await this.read(this.T.codeRec, 'A2:H500');
+    const updates = [];
+    for (let i = 0; i < recs.length; i++) {
+      if (this._normDate(recs[i][0]) === normOld && (recs[i][7]||'').trim() === name.trim())
+        updates.push(i + 2);
+    }
+    if (!updates.length) return 0;
+    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
+    const r = await fetch(url, { method:'POST', headers:{...this.hdrs(),'Content-Type':'application/json'},
+      body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+        data: updates.map(row => ({ range:`${this.T.codeRec}!A${row}`, values:[[newDate]] })) }) });
+    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
+    localStorage.removeItem('ortho_codeRec2');
+    return updates.length;
+  },
+
   async deleteCodesByPatient(month, name) {
     if (!month || !name) return 0;
     const recs = await this.read(this.T.codeRec, 'A2:H500');
