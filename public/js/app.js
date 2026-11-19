@@ -1932,8 +1932,12 @@ const APP = {
         const oldImplant = r.implant || '';
         const newImplant = document.getElementById('es-bone-val').value || '';
         await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
+        const oldDate = r.date || '';
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
+        }
+        if (oldDate && esDate && oldDate !== esDate) {
+          try { await SHEETS.updateMatRecDate(newName, oldDate, esDate); } catch(e2) {}
         }
         // Sync codes: update K col + OP代碼記錄
         const editCodeStr = (this._editOpCodes||[]).map(c=>c.code).join(',');

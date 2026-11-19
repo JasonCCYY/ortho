@@ -361,6 +361,25 @@ const SHEETS = {
     if (m2) return `${m2[1]}/${m2[2].padStart(2,'0')}/${m2[3].padStart(2,'0')}`;
     return String(s).trim();
   },
+  async updateMatRecDate(name, oldDate, newDate) {
+    if (!name || !oldDate || !newDate || oldDate === newDate) return 0;
+    const normOld = this._normDate(oldDate);
+    const recs = await this.read(this.T.matRec, 'A2:G500');
+    const updates = [];
+    for (let i = 0; i < recs.length; i++) {
+      if (this._normDate(recs[i][0]) === normOld && (recs[i][5]||'').trim() === name.trim())
+        updates.push(i + 2);
+    }
+    if (!updates.length) return 0;
+    const url = `${this.BASE}/${this.ID}/values:batchUpdate`;
+    const r = await fetch(url, { method:'POST', headers:{...this.hdrs(),'Content-Type':'application/json'},
+      body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+        data: updates.map(row => ({ range:`${this.T.matRec}!A${row}`, values:[[newDate]] })) }) });
+    if (!r.ok) throw new Error(`批次更新失敗(${r.status})`);
+    localStorage.removeItem('ortho_matRec2');
+    return updates.length;
+  },
+
   async deleteMatRecByPatientDate(name, date) {
     if (!name || !date) return 0;
     const normD = this._normDate(date);
