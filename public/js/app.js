@@ -1166,8 +1166,9 @@ const APP = {
       { cat:'人工關節', label:'TKA',  re:/TKA/i  },
       { cat:'',         label:'THA',  re:/THA/i  },
       { cat:'',         label:'RTSA', re:/RTSA/i },
-      { cat:'肩關節鏡', label:'RCT',  re:/RCT(?!\s*open)/i },
+      { cat:'關節鏡',   label:'RCT',  re:/RCT(?!\s*open)/i },
       { cat:'',         label:'SLAP', re:/SLAP/i },
+      { cat:'',         label:'ACLR', re:/ACLR/i },
     ];
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
 
@@ -1195,12 +1196,16 @@ const APP = {
       // 指標性手術
       const year = this._statsMonth.substring(0, 4);
       const yOps = ops.filter(r => r.date && r.date.startsWith(year));
-      const keyCounts = KEY_SX.map(k => ({
-        ...k,
-        month: mOps.filter(r => k.re.test(r.opName||'')).length,
-        yr:    yOps.filter(r => k.re.test(r.opName||'')).length,
-        total: ops.filter(r => k.re.test(r.opName||'')).length,
-      }));
+      const keyCounts = KEY_SX.map(k => {
+        const matched = ops.filter(r => k.re.test(r.opName||''));
+        return {
+          ...k,
+          month: mOps.filter(r => k.re.test(r.opName||'')).length,
+          yr:    yOps.filter(r => k.re.test(r.opName||'')).length,
+          total: matched.length,
+          recs:  matched,
+        };
+      });
 
       // 骨材 + 生長因子（從 implant 解析）
       const boneMap = {}, gfMap = {};
@@ -1287,28 +1292,29 @@ const APP = {
         parts.push(`<div class="stats-card"><div class="stats-card-title">常見手術名稱 Top 5</div>${topHtml}</div>`);
       }
 
-      // Card 3: 指標性手術
+      // 指標性手術 HTML（移至累積總量後面）
+      this._keyCountsStore = keyCounts;
       let keyRows = '', lastCat = '';
-      keyCounts.forEach(k => {
+      keyCounts.forEach((k, idx) => {
         if(k.cat && k.cat !== lastCat) {
           keyRows += `<tr><td class="stats-key-cat" colspan="4">${k.cat}</td></tr>`;
           lastCat = k.cat;
         }
         const mColor = k.month > 0 ? 'color:var(--accent)' : 'color:var(--muted)';
-        keyRows += `<tr>
+        keyRows += `<tr style="cursor:pointer" onclick="APP.showKeyRecs(${idx})">
           <td>${k.label}</td>
           <td style="${mColor}">${k.month}</td>
           <td style="color:var(--txt2)">${k.yr}</td>
           <td style="color:var(--txt2)">${k.total}</td>
         </tr>`;
       });
-      parts.push(`<div class="stats-card">
+      const keyCard = `<div class="stats-card">
         <div class="stats-card-title">指標性手術</div>
         <table class="stats-key-table">
           <thead><tr><th></th><th>本月</th><th>${year}</th><th>所有</th></tr></thead>
           <tbody>${keyRows}</tbody>
         </table>
-      </div>`);
+      </div>`;
 
       // Card 4: 骨材
       if(bones.length) {
@@ -1322,7 +1328,7 @@ const APP = {
         parts.push(`<div class="stats-card"><div class="stats-card-title">生長因子（本月）</div>${gHtml}</div>`);
       }
 
-      // Card: 累積總量（114/8起）— 最後一張
+      // 累積總量（114/8起）
       const allTypeMap = {};
       ops.forEach(r => { if(r.type) allTypeMap[r.type]=(allTypeMap[r.type]||0)+1; });
       const allTypes = Object.entries(allTypeMap).sort((a,b)=>b[1]-a[1]);
@@ -1339,8 +1345,41 @@ const APP = {
         <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
         ${allTypeHtml}
       </div>`);
+      parts.push(keyCard);
       body.innerHTML = parts.join('') || `<div style="color:var(--muted);padding:32px 0;text-align:center">本月無手術紀錄</div>`;
     } catch(e) { body.innerHTML = this.err(e); }
+  },
+
+  showKeyRecs(idx) {
+    const k = this._keyCountsStore && this._keyCountsStore[idx];
+    if (!k) return;
+    const recs = (k.recs || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    let rows = recs.map(r => {
+      const si = this._storeRow(r);
+      return `<div class="list-row" style="cursor:pointer" onclick="APP._closeKeyRecs();APP.openDetailS('sx',${si})">
+        <span style="min-width:72px;font-size:.82rem;color:var(--muted);flex-shrink:0">${r.date||''}</span>
+        <span style="flex:1;min-width:0">${r.name||''}</span>
+        <span style="font-size:.82rem;color:var(--txt2);flex-shrink:0">${r.opName||''}</span>
+      </div>`;
+    }).join('');
+    if (!rows) rows = `<div style="color:var(--muted);padding:16px 0;text-align:center">無紀錄</div>`;
+    const overlay = document.createElement('div');
+    overlay.id = 'key-recs-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:flex-end;justify-content:center';
+    overlay.innerHTML = `<div style="background:var(--card-bg,var(--bg));border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:70vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0px)">
+      <div style="display:flex;align-items:center;padding:16px 18px 10px;border-bottom:1px solid var(--border,#e0e0e0)">
+        <span style="font-weight:600;font-size:1rem;flex:1">${k.label} 手術紀錄</span>
+        <button onclick="APP._closeKeyRecs()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);padding:0 4px">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:8px 0">${rows}</div>
+    </div>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) this._closeKeyRecs(); });
+    document.body.appendChild(overlay);
+  },
+
+  _closeKeyRecs() {
+    const el = document.getElementById('key-recs-overlay');
+    if (el) el.remove();
   },
 
   // ── Material Records ──
