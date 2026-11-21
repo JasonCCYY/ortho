@@ -1339,13 +1339,13 @@ const APP = {
         <span class="badge badge-${t}" style="min-width:62px;text-align:center">${t}</span>
         <span class="stats-type-n" style="margin-left:auto">${n} <span style="color:var(--muted);font-size:.8em">${Math.round(n/allTotal*100)}%</span></span>
       </div>`).join('');
+      parts.push(keyCard);
       parts.push(`<div class="stats-card">
         <div class="stats-card-title">累積總量（114/8 起）</div>
         <div class="stats-hero">${ops.length}<span style="font-size:1rem;font-weight:500;color:var(--muted)"> 台</span></div>
         <div class="stats-sub" style="margin-bottom:10px">${allAreaText||'—'}</div>
         ${allTypeHtml}
       </div>`);
-      parts.push(keyCard);
       body.innerHTML = parts.join('') || `<div style="color:var(--muted);padding:32px 0;text-align:center">本月無手術紀錄</div>`;
     } catch(e) { body.innerHTML = this.err(e); }
   },
