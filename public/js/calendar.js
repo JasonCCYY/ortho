@@ -42,21 +42,43 @@ const ORTHO_CALENDAR = {
       description: surgeries.join('\n'),
       start: { date },
       end: { date: next.toISOString().slice(0, 10) },
+      attendees: [],
       extendedProperties: { private: { orthoDay: dayKey } },
     };
     const query = new URLSearchParams({ privateExtendedProperty: 'orthoDay=' + dayKey });
     const response = await this.request(path + '?' + query);
     if (!response.ok) throw new Error('無法查詢報備');
     const result = await response.json();
-    const matches = (result.items || []).filter(item => item.status !== 'cancelled');
+    let matches = (result.items || []).filter(item => item.status !== 'cancelled');
     if (matches.length > 1 || result.nextPageToken) throw new Error('找到多筆報備');
+
+    if (!matches.length && surgeries.length) {
+      const dayQuery = new URLSearchParams({
+        timeMin: date + 'T00:00:00+08:00',
+        timeMax: event.end.date + 'T00:00:00+08:00',
+        timeZone: 'Asia/Taipei',
+      });
+      const dayResponse = await this.request(path + '?' + dayQuery);
+      if (!dayResponse.ok) throw new Error('無法查詢既有報備');
+      const day = await dayResponse.json();
+      matches = (day.items || []).filter(item =>
+        item.status !== 'cancelled' && item.summary === event.summary &&
+        item.start?.date === date && item.end?.date === event.end.date &&
+        !item.recurringEventId && !item.recurrence?.length &&
+        item.organizer?.self === true
+      );
+      if (matches.length > 1 || day.nextPageToken) throw new Error('找到多筆報備');
+    }
 
     if (matches.length === 1) {
       const existing = matches[0];
       const headers = existing.etag ? { 'If-Match': existing.etag } : {};
       const itemPath = path + '/' + encodeURIComponent(existing.id);
       const method = surgeries.length ? 'PATCH' : 'DELETE';
-      const saved = await this.request(itemPath, method, surgeries.length ? event : undefined, headers);
+      const saved = method === 'PATCH'
+        ? await this.request(itemPath + '?conferenceDataVersion=1&sendUpdates=none', method,
+          { ...event, conferenceData: null }, headers)
+        : await this.request(itemPath + '?sendUpdates=none', method, undefined, headers);
       if (!saved.ok && !(method === 'DELETE' && [404, 410].includes(saved.status))) {
         throw new Error('無法更新報備');
       }
@@ -68,7 +90,7 @@ const ORTHO_CALENDAR = {
     const baseId = 'ortho' + date.replace(/-/g, '');
     for (let generation = 0; generation < 32; generation++) {
       const id = baseId + generation.toString(32);
-      const created = await this.request(path, 'POST', { ...event, id });
+      const created = await this.request(path + '?conferenceDataVersion=1&sendUpdates=none', 'POST', { ...event, id });
       if (created.ok) return;
       if (created.status !== 409) break;
       const existing = await this.request(path + '/' + id);
@@ -78,7 +100,8 @@ const ORTHO_CALENDAR = {
       if (found.status === 'cancelled') continue;
       if (found.extendedProperties?.private?.orthoDay !== dayKey) break;
       const headers = found.etag ? { 'If-Match': found.etag } : {};
-      const updated = await this.request(path + '/' + id, 'PATCH', event, headers);
+      const updated = await this.request(path + '/' + id + '?conferenceDataVersion=1&sendUpdates=none', 'PATCH',
+        { ...event, conferenceData: null }, headers);
       if (updated.ok) return;
       break;
     }
