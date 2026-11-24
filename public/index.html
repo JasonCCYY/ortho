@@ -149,6 +149,11 @@
     <!-- Surgery Page -->
     <div id="pg-surgery" class="page">
       <div class="sub-page" id="pg-sx-list">
+        <div id="calendar-sync-status" hidden>
+          <span role="status">Google 日曆尚未同步</span>
+          <button type="button" onclick="APP.syncCalendar()">重試</button>
+          <button type="button" onclick="AUTH.signIn()">重新授權</button>
+        </div>
         <div class="sx-wrap">
           <table class="sx-table">
             <thead><tr>
@@ -567,6 +572,7 @@
 
 <script src="/js/auth.js"></script>
 <script src="/js/sheets.js"></script>
+<script src="/js/calendar.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

@@ -115,7 +115,7 @@ const SHEETS = {
   },
 
   // ── Loaders ──
-  async loadOpRecords() {
+  async loadOpRecords({ fresh = false } = {}) {
     const load = async () => {
       const hRow = await this.read(this.T.op, 'A1:K1');
       const h = (hRow[0] || []).map(x => (x||'').trim());
@@ -125,7 +125,7 @@ const SHEETS = {
             iT=ci(['類型'],5), iON=ci(['名稱','術式'],6),
             iL=ci(['部位'],7), iI=ci(['骨材'],8), iNt=ci(['備註'],9),
             iK=ci(['代碼'],10);
-      const rows = await this.read(this.T.op, 'A2:K500');
+      const rows = await this.read(this.T.op, fresh ? 'A2:K' : 'A2:K500');
       return rows.reduce((acc,r,i)=>{
         if(r[iD]||r[iN]) acc.push({ _row:i+2, date:r[iD]||'', area:r[iA]||'', mrn:r[iMR]||'',
           clinicId:r[iCL]||'', name:r[iN]||'',
@@ -134,7 +134,7 @@ const SHEETS = {
         return acc;
       },[]);
     };
-    return this.cached('op', load);
+    return fresh ? load() : this.cached('op', load);
   },
 
   async loadTrackRecords() {

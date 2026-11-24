@@ -48,6 +48,7 @@ const APP = {
     console.log('[APP] app display set to flex');
     try { SHEETS.loadCategories(); } catch(e) { console.error('[APP] loadCategories:', e); }
     try { this.switchTab('surgery', false); } catch(e) { console.error('[APP] switchTab:', e); }
+    this.syncCalendar();
     console.log('[APP] onAuthSuccess done');
     Promise.all([SHEETS.loadTrackRecords(), SHEETS.loadClinicRecords()]).catch(()=>{});
     this._todaySet = new Set();
@@ -64,6 +65,64 @@ const APP = {
   nowMonth() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}`; },
   today() { const n=new Date(); return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`; },
   todayISO() { return new Date().toISOString().split('T')[0]; },
+
+  _calendarQueueKey() {
+    return 'ortho_calendar_dates:' + (AUTH.userInfo?.email || '');
+  },
+
+  queueCalendar(...dates) {
+    const key = this._calendarQueueKey();
+    try {
+      const pending = this._calendarPending(key);
+      for (const value of dates) {
+        const date = this.toISO(value);
+        const parsed = new Date(date);
+        if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date) {
+          pending[date] = crypto.randomUUID();
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(pending));
+      this.syncCalendar();
+    } catch (error) {
+      this.toast('手術紀錄已寫入，無法儲存日曆同步清單');
+    }
+  },
+
+  _calendarPending(key) {
+    return JSON.parse(localStorage.getItem(key) || '{}');
+  },
+
+  async syncCalendar() {
+    if (this._syncingCalendar) return;
+    const status = document.getElementById('calendar-sync-status');
+    if (!status) return;
+    const key = this._calendarQueueKey();
+    this._syncingCalendar = true;
+    try {
+      while (Object.keys(this._calendarPending(key)).length) {
+        const pending = this._calendarPending(key);
+        const calendar = await ORTHO_CALENDAR.findWork();
+        const records = await SHEETS.loadOpRecords({ fresh: true });
+        for (const [date, revision] of Object.entries(pending)) {
+          const current = this._calendarPending(key);
+          if (current[date] !== revision) continue;
+          const names = records.filter(record => this.toISO(record.date) === date)
+            .map(record => String(record.opName || '').trim() || '手術名稱未填');
+          await ORTHO_CALENDAR.syncDay(calendar, date, names);
+          const remaining = this._calendarPending(key);
+          if (remaining[date] === revision) {
+            delete remaining[date];
+            localStorage.setItem(key, JSON.stringify(remaining));
+          }
+        }
+      }
+      status.hidden = true;
+    } catch (error) {
+      status.hidden = false;
+    } finally {
+      this._syncingCalendar = false;
+    }
+  },
 
   _todaySet: new Set(),
   _markAddedToday(type, fp) {
@@ -701,6 +760,7 @@ const APP = {
         note: p.note,
         codes: codeStr,
       });
+      this.queueCalendar(p.date);
       this._markAddedToday('sx', p.date+'|'+p.name);
 
       // 新增代碼紀錄（每個批價碼一筆）
@@ -1972,6 +2032,7 @@ const APP = {
         const newImplant = document.getElementById('es-bone-val').value || '';
         await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
         const oldDate = r.date || '';
+        this.queueCalendar(esDate, oldDate);
         if (oldName && newName && oldName !== newName) {
           await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
           try { await SHEETS.updatePatientInCodeRec(oldName, newName, esDate); } catch(e2) {}
@@ -2067,6 +2128,7 @@ const APP = {
       const usageId = uid ? (r.usageId||'') : '';
       await SHEETS.deleteRow(tab, r._row, cols[0], cols[1], cacheMap[type],
         usageId, uid?.range, uid?.col);
+      if (type === 'sx') this.queueCalendar(r.date);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('🗑 已刪除');
@@ -2087,6 +2149,7 @@ const APP = {
     try {
       await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
       await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      this.queueCalendar(r.date);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移至追蹤');
@@ -2116,6 +2179,7 @@ const APP = {
     }
     try {
       await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note, codes:r.codes||'' });
+      this.queueCalendar(r.date);
       this._markAddedToday('sx', r.date+'|'+r.name);
       await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
       // Re-add codes to OP代碼記錄
@@ -2160,6 +2224,7 @@ const APP = {
     try {
       await SHEETS.addTrack({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
       await SHEETS.deleteRow(SHEETS.T.op, r._row, 'A', 'K', 'op', r.usageId||'', 'A2:K500', 10);
+      this.queueCalendar(r.date);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
       this.toast('✅ 已移至追蹤');
@@ -2173,6 +2238,7 @@ const APP = {
     if(!confirm('將此追蹤紀錄移回手術紀錄？')) return;
     try {
       await SHEETS.addOp({ date:r.date, area:r.area, mrn:r.mrn||'', clinicId:r.clinicId||'', name:r.name, type:r.type, opName:r.opName, location:r.location, implant:r.implant, note:r.note });
+      this.queueCalendar(r.date);
       await SHEETS.deleteRow(SHEETS.T.track, r._row, 'A', 'K', 'track', r.usageId||'', 'A2:K500', 10);
       this._detailFromSearch = false;
       this.closeModal('modal-detail');
@@ -2199,6 +2265,7 @@ const APP = {
     try{
       d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
+      this.queueCalendar(d.date);
       this._markAddedToday('sx', d.date+'|'+d.name);
       // Write codes (_pendingOpCodes pre-populated from matchedCodes in scanEdit)
       for(const c of (this._pendingOpCodes||[])) {
