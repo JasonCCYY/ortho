@@ -73,10 +73,28 @@ const ORTHO_CALENDAR = {
     }
   },
 
-  cacheEvent(cache, date, event) {
+  descriptionKey(description) {
+    return JSON.stringify(String(description || '').split(/\r?\n/).sort());
+  },
+
+  matchesReport(existing, expected) {
+    return existing.status !== 'cancelled' &&
+      existing.summary === expected.summary &&
+      existing.start?.date === expected.start.date &&
+      existing.end?.date === expected.end.date &&
+      existing.extendedProperties?.private?.orthoDay === expected.extendedProperties.private.orthoDay &&
+      !existing.conferenceData && !existing.hangoutLink && !existing.attendees?.length &&
+      this.descriptionKey(existing.description) === this.descriptionKey(expected.description);
+  },
+
+  cacheEvent(cache, date, event, expected) {
     if (!cache) return;
     cache.entries.delete(date);
-    if (event?.id && event.etag) cache.entries.set(date, { id: event.id, etag: event.etag });
+    if (event?.id && event.etag) {
+      const entry = { id: event.id, etag: event.etag };
+      if (expected && this.matchesReport(event, expected)) entry.descriptionKey = this.descriptionKey(expected.description);
+      cache.entries.set(date, entry);
+    }
     try {
       localStorage.setItem(cache.key, JSON.stringify([...cache.entries].slice(-180)));
     } catch (error) {}
@@ -99,15 +117,34 @@ const ORTHO_CALENDAR = {
     const cached = cache?.entries.get(date);
     const patch = { ...event, conferenceData: null };
     const writeOptions = '?conferenceDataVersion=1&sendUpdates=none';
-    // If the event changed since the last write, Google rejects the cached ETag.
     if (surgeries.length && cached?.id && cached.etag) {
-      const saved = await this.request(path + '/' + encodeURIComponent(cached.id) + writeOptions,
-        'PATCH', patch, { 'If-Match': cached.etag });
-      if (saved.ok) {
-        this.cacheEvent(cache, date, await saved.json().catch(() => null));
-        return;
+      const itemPath = path + '/' + encodeURIComponent(cached.id);
+      let etag = cached.etag;
+      if (cached.descriptionKey === this.descriptionKey(event.description)) {
+        const checked = await this.request(itemPath, 'GET', undefined, { 'If-None-Match': etag });
+        if (checked.status === 304) return;
+        if (checked.ok) {
+          const current = await checked.json();
+          if (this.matchesReport(current, event)) {
+            this.cacheEvent(cache, date, current, event);
+            return;
+          }
+          etag = current.status !== 'cancelled' &&
+            current.extendedProperties?.private?.orthoDay === dayKey ? current.etag : null;
+        } else if ([404, 410].includes(checked.status)) {
+          etag = null;
+        } else {
+          throw await this.failure(checked, '無法核對報備');
+        }
       }
-      if (![404, 410, 412].includes(saved.status)) throw await this.failure(saved, '無法更新報備');
+      if (etag) {
+        const saved = await this.request(itemPath + writeOptions, 'PATCH', patch, { 'If-Match': etag });
+        if (saved.ok) {
+          this.cacheEvent(cache, date, await saved.json().catch(() => null), event);
+          return;
+        }
+        if (![404, 410, 412].includes(saved.status)) throw await this.failure(saved, '無法更新報備');
+      }
       this.cacheEvent(cache, date, null);
     }
     const query = new URLSearchParams({ privateExtendedProperty: 'orthoDay=' + dayKey });
@@ -137,6 +174,10 @@ const ORTHO_CALENDAR = {
 
     if (matches.length === 1) {
       const existing = matches[0];
+      if (surgeries.length && this.matchesReport(existing, event)) {
+        this.cacheEvent(cache, date, existing, event);
+        return;
+      }
       const headers = existing.etag ? { 'If-Match': existing.etag } : {};
       const itemPath = path + '/' + encodeURIComponent(existing.id);
       const method = surgeries.length ? 'PATCH' : 'DELETE';
@@ -146,7 +187,7 @@ const ORTHO_CALENDAR = {
       if (!saved.ok && !(method === 'DELETE' && [404, 410].includes(saved.status))) {
         throw await this.failure(saved, '無法更新或刪除報備');
       }
-      this.cacheEvent(cache, date, method === 'PATCH' ? await saved.json().catch(() => null) : null);
+      this.cacheEvent(cache, date, method === 'PATCH' ? await saved.json().catch(() => null) : null, event);
       return;
     }
     if (!surgeries.length) {
@@ -160,7 +201,7 @@ const ORTHO_CALENDAR = {
       const id = baseId + generation.toString(32);
       const created = await this.request(path + writeOptions, 'POST', { ...event, id });
       if (created.ok) {
-        this.cacheEvent(cache, date, await created.json().catch(() => null));
+        this.cacheEvent(cache, date, await created.json().catch(() => null), event);
         return;
       }
       if (created.status !== 409) throw await this.failure(created, '無法建立報備');
@@ -170,10 +211,14 @@ const ORTHO_CALENDAR = {
       const found = await existing.json();
       if (found.status === 'cancelled') continue;
       if (found.extendedProperties?.private?.orthoDay !== dayKey) break;
+      if (this.matchesReport(found, event)) {
+        this.cacheEvent(cache, date, found, event);
+        return;
+      }
       const headers = found.etag ? { 'If-Match': found.etag } : {};
       const updated = await this.request(path + '/' + id + writeOptions, 'PATCH', patch, headers);
       if (updated.ok) {
-        this.cacheEvent(cache, date, await updated.json().catch(() => null));
+        this.cacheEvent(cache, date, await updated.json().catch(() => null), event);
         return;
       }
       throw await this.failure(updated, '無法更新報備');
