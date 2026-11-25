@@ -91,7 +91,7 @@ const ORTHO_CALENDAR = {
     if (!cache) return;
     cache.entries.delete(date);
     if (event?.id && event.etag) {
-      const entry = { id: event.id, etag: event.etag };
+      const entry = { id: event.id, etag: event.etag, summary: event.summary };
       if (expected && this.matchesReport(event, expected)) entry.descriptionKey = this.descriptionKey(expected.description);
       cache.entries.set(date, entry);
     }
@@ -106,7 +106,7 @@ const ORTHO_CALENDAR = {
     const next = new Date(date);
     next.setUTCDate(next.getUTCDate() + 1);
     const event = {
-      summary: '🔴報備',
+      summary: '刀📌報備',
       description: surgeries.join('\n'),
       start: { date },
       end: { date: next.toISOString().slice(0, 10) },
@@ -120,7 +120,7 @@ const ORTHO_CALENDAR = {
     if (surgeries.length && cached?.id && cached.etag) {
       const itemPath = path + '/' + encodeURIComponent(cached.id);
       let etag = cached.etag;
-      if (cached.descriptionKey === this.descriptionKey(event.description)) {
+      if (cached.summary === event.summary && cached.descriptionKey === this.descriptionKey(event.description)) {
         const checked = await this.request(itemPath, 'GET', undefined, { 'If-None-Match': etag });
         if (checked.status === 304) return;
         if (checked.ok) {
@@ -164,7 +164,7 @@ const ORTHO_CALENDAR = {
       if (!dayResponse.ok) throw await this.failure(dayResponse, '無法查詢既有報備');
       const day = await dayResponse.json();
       matches = (day.items || []).filter(item =>
-        item.status !== 'cancelled' && item.summary === event.summary &&
+        item.status !== 'cancelled' && [event.summary, '🔴報備'].includes(item.summary) &&
         item.start?.date === date && item.end?.date === event.end.date &&
         !item.recurringEventId && !item.recurrence?.length &&
         item.organizer?.self === true
