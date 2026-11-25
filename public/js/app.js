@@ -98,6 +98,7 @@ const APP = {
     if (!status) return;
     const key = this._calendarQueueKey();
     this._syncingCalendar = true;
+    let synced = false;
     try {
       while (Object.keys(this._calendarPending(key)).length) {
         const pending = this._calendarPending(key);
@@ -111,6 +112,7 @@ const APP = {
             .map(record => String(record.opName || '').trim() || '手術名稱未填');
           try {
             await ORTHO_CALENDAR.syncDay(calendar, date, names);
+            synced = true;
           } catch (error) {
             failures.push(date + '：' + error.message);
             continue;
@@ -124,6 +126,18 @@ const APP = {
         if (failures.length) throw new Error(failures[0]);
       }
       status.hidden = true;
+      if (synced) {
+        const notice = document.getElementById('calendar-sync-toast');
+        if (notice) {
+          clearTimeout(this._calendarToastTimer);
+          notice.textContent = '日曆已同步';
+          notice.classList.add('show');
+          this._calendarToastTimer = setTimeout(() => {
+            notice.classList.remove('show');
+            notice.textContent = '';
+          }, 2600);
+        }
+      }
     } catch (error) {
       status.querySelector('[role="status"]').textContent = 'Google 日曆尚未同步：' + error.message;
       status.hidden = false;
