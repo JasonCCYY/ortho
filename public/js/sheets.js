@@ -576,12 +576,15 @@ const SHEETS = {
   async loadTodayRecs() {
     try {
       const today = this.nowDate();
-      const rows = await this.read(this.T.newRec, 'A2:C1000');
-      return rows.filter(r => r[0] === today).map(r => ({ type: r[1]||'', id: r[2]||'' }));
+      const rows = await this.read(this.T.newRec, 'A2:C');
+      return rows.filter(r => this._normDate(r[0]) === this._normDate(today)).map(r => ({ type: r[1]||'', id: r[2]||'' }));
     } catch(e) { return []; }
   },
   async addNewRec(type, id) {
-    try { await this.append(this.T.newRec, [[this.nowDate(), type, id]]); } catch(e) {}
+    try {
+      await this.append(this.T.newRec, [[this._d(this.nowDate()), type, id]]);
+      return true;
+    } catch (e) { return false; }
   },
 
   async deleteRow(tab, row, c1, c2, cacheKey, usageId, uidRange, uidCol) {

@@ -103,21 +103,29 @@ const APP = {
         const pending = this._calendarPending(key);
         const calendar = await ORTHO_CALENDAR.findWork();
         const records = await SHEETS.loadOpRecords({ fresh: true });
+        const failures = [];
         for (const [date, revision] of Object.entries(pending)) {
           const current = this._calendarPending(key);
           if (current[date] !== revision) continue;
           const names = records.filter(record => this.toISO(record.date) === date)
             .map(record => String(record.opName || '').trim() || '手術名稱未填');
-          await ORTHO_CALENDAR.syncDay(calendar, date, names);
+          try {
+            await ORTHO_CALENDAR.syncDay(calendar, date, names);
+          } catch (error) {
+            failures.push(date + '：' + error.message);
+            continue;
+          }
           const remaining = this._calendarPending(key);
           if (remaining[date] === revision) {
             delete remaining[date];
             localStorage.setItem(key, JSON.stringify(remaining));
           }
         }
+        if (failures.length) throw new Error(failures[0]);
       }
       status.hidden = true;
     } catch (error) {
+      status.querySelector('[role="status"]').textContent = 'Google 日曆尚未同步：' + error.message;
       status.hidden = false;
     } finally {
       this._syncingCalendar = false;
@@ -127,7 +135,7 @@ const APP = {
   _todaySet: new Set(),
   _markAddedToday(type, fp) {
     this._todaySet.add(type + ':' + fp);
-    SHEETS.addNewRec(type, fp);
+    return SHEETS.addNewRec(type, fp);
   },
   _isAddedToday(type, fp) {
     return this._todaySet.has(type + ':' + fp);
@@ -2023,21 +2031,27 @@ const APP = {
     const type=this._detailType, r=this._detailData;
     const modalMap={sx:'modal-edit-sx',track:'modal-edit-track',mat:'modal-edit-mat',selfpay:'modal-edit-selfpay',opcode:'modal-edit-opcode',coderec:'modal-edit-coderec',clinic:'modal-edit-clinic'};
     const btn = this._lockSaveBtn(modalMap[type]||'');
+    const markers = [];
     try {
       if(type==='sx') {
         const esDate=document.getElementById('es-date').value.replace(/-/g,'/');
         const oldName = r.name || '';
         const newName = document.getElementById('es-name').value;
+        const opName = document.getElementById('es-opname').value;
         const oldImplant = r.implant || '';
         const newImplant = document.getElementById('es-bone-val').value || '';
-        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName:document.getElementById('es-opname').value,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
+        await SHEETS.updateSurgery(r._row,{date:esDate,area:document.getElementById('es-area-val').value,mrn:document.getElementById('es-mrn').value,clinicId:document.getElementById('es-clinicid')?.value||'',name:newName,type:document.getElementById('es-type-val').value,opName,location:document.getElementById('es-loc').value,implant:newImplant,note:document.getElementById('es-note').value});
         const oldDate = r.date || '';
-        this.queueCalendar(esDate, oldDate);
+        const dateChanged = this.toISO(oldDate) !== this.toISO(esDate);
+        if (dateChanged || String(r.opName || '').trim() !== opName.trim()) {
+          this.queueCalendar(esDate, oldDate);
+        }
+        markers.push(this._markAddedToday('sx', esDate+'|'+newName));
         if (oldName && newName && oldName !== newName) {
-          await SHEETS.updatePatientInMatRec(oldName, newName, esDate);
+          await SHEETS.updatePatientInMatRec(oldName, newName, oldDate || esDate);
           try { await SHEETS.updatePatientInCodeRec(oldName, newName, esDate); } catch(e2) {}
         }
-        if (oldDate && esDate && oldDate !== esDate) {
+        if (dateChanged && oldDate && esDate && oldImplant === newImplant) {
           try { await SHEETS.updateMatRecDate(newName, oldDate, esDate); } catch(e2) {}
         }
         // Sync codes: update K col + OP代碼記錄
@@ -2045,13 +2059,12 @@ const APP = {
         const origCodeStr = (r.codes||'').replace(/\s/g,'');
         await SHEETS.updateOpCodes(r._row, editCodeStr);
         const codesChanged = editCodeStr !== origCodeStr;
-        const dateChanged = oldDate && esDate && oldDate !== esDate;
         try {
           const editArea = document.getElementById('es-area-val').value || r.area || '中正';
           if (!codesChanged && dateChanged) {
             // 只改日期：直接更新代碼紀錄的日期欄位
             await SHEETS.updateCodeRecDate(newName, oldDate, esDate);
-          } else if (codesChanged || (this._editOpCodes||[]).length > 0) {
+          } else if (codesChanged) {
             // 代碼有變：刪除舊記錄重新寫入
             await SHEETS.deleteCodesByPatient(oldDate ? oldDate.substring(0,7) : esDate.substring(0,7), newName);
             for(const c of (this._editOpCodes||[])) {
@@ -2064,16 +2077,16 @@ const APP = {
         this.closeModal('modal-edit-sx'); this.loadSurgery();
         if (oldImplant !== newImplant) {
           try {
-            const delCount = await SHEETS.deleteMatRecByPatientDate(newName, r.date);
-            let addCount = 0;
+            await SHEETS.deleteMatRecByPatientDate(newName, oldDate || esDate);
             if (newImplant) {
               const matProds = await SHEETS.loadMatProducts();
               const boneSels = this._parseImplantToSelections(newImplant, SHEETS.boneCats || []);
               for (const s of boneSels) {
                 if (!s.product) continue;
                 const prod = matProds.find(p=>p.brand===s.brand && p.product===s.product) || matProds.find(p=>p.product===s.product);
-                await SHEETS.addMatFromSurgery({ date:esDate, brand:s.brand||prod?.brand||s.product, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
-                addCount++;
+                const brand = s.brand||prod?.brand||s.product;
+                await SHEETS.addMatFromSurgery({ date:esDate, brand, product:s.product, price:prod?.price||'', qty:s.qty||1, patient:newName });
+                markers.push(this._markAddedToday('mat', [esDate, brand, s.product, newName].join('|')));
               }
             }
             this.toast('✅ 骨材記錄已同步修改');
@@ -2084,7 +2097,17 @@ const APP = {
         await SHEETS.updateTrack(r._row,{date:etDate,area:document.getElementById('et-area-val').value,mrn:document.getElementById('et-mrn').value,clinicId:document.getElementById('et-clinicid')?.value||'',name:document.getElementById('et-name').value,type:document.getElementById('et-type-val').value,opName:document.getElementById('et-opname').value,location:document.getElementById('et-loc').value,implant:document.getElementById('et-bone-val')?.value||'',note:document.getElementById('et-note').value});
         this.closeModal('modal-edit-track'); this.loadTrack();
       } else if(type==='mat') {
-        await SHEETS.updateMatRow(r._row,{brand:document.getElementById('em-brand').value,product:document.getElementById('em-product').value,date:document.getElementById('em-date').value,price:document.getElementById('em-price').value,qty:document.getElementById('em-qty').value,done:document.getElementById('em-done-val').value,patient:r.patient||''});
+        const d = {
+          brand:document.getElementById('em-brand').value,
+          product:document.getElementById('em-product').value,
+          date:document.getElementById('em-date').value,
+          price:document.getElementById('em-price').value,
+          qty:document.getElementById('em-qty').value,
+          done:document.getElementById('em-done-val').value,
+          patient:r.patient||'',
+        };
+        await SHEETS.updateMatRow(r._row, d);
+        markers.push(this._markAddedToday('mat', [d.date, d.brand, d.product, d.patient].join('|')));
         this.closeModal('modal-edit-mat'); this.loadMatRec();
       } else if(type==='selfpay') {
         const rawPrice = document.getElementById('esp-price').value.trim();
@@ -2110,7 +2133,8 @@ const APP = {
         await SHEETS.updateClinicRec(r._row,{date:document.getElementById('ecl-date').value,product:document.getElementById('ecl-product').value,price:document.getElementById('ecl-price').value,qty:document.getElementById('ecl-qty').value});
         this.closeModal('modal-edit-clinic'); this.loadClinic();
       }
-      this.toast('✅ 已更新');
+      const markerResults = await Promise.all(markers);
+      this.toast(markerResults.includes(false) ? '已更新，橘燈未能同步至新增記錄' : '✅ 已更新');
     } catch(e) { this.toast('❌ '+e.message); }
     finally { this._savingEdit = false; this._unlockSaveBtn(btn); }
   },

@@ -16,6 +16,23 @@ const ORTHO_CALENDAR = {
     return response;
   },
 
+  async failure(response, operation) {
+    const payload = await response.json().catch(() => null);
+    const error = payload?.error;
+    const reasons = [...(error?.errors || []), ...(error?.details || [])].map(item => item.reason);
+    if (reasons.some(reason => ['accessNotConfigured', 'SERVICE_DISABLED'].includes(reason))) {
+      return new Error('ortho 的 Google Cloud 專案尚未啟用 Calendar API');
+    }
+    if (response.status === 401 || reasons.some(reason =>
+      ['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(reason))) {
+      return new Error('Google 日曆授權不足，請重新授權');
+    }
+    if (response.status === 403) return new Error(operation + '：Google 拒絕存取（403），請確認 Work 的編輯權限');
+    if (response.status === 429) return new Error('Google 日曆暫時限制請求，請稍後重試');
+    if (response.status === 412) return new Error('報備剛被其他操作修改，請重試');
+    return new Error(operation + '（HTTP ' + response.status + '）');
+  },
+
   async findWork() {
     const matches = [];
     let pageToken;
@@ -23,7 +40,7 @@ const ORTHO_CALENDAR = {
       const query = new URLSearchParams({ minAccessRole: 'writer', showHidden: 'true' });
       if (pageToken) query.set('pageToken', pageToken);
       const response = await this.request('users/me/calendarList?' + query);
-      if (!response.ok) throw new Error('無法讀取 Google 日曆');
+      if (!response.ok) throw await this.failure(response, '無法讀取 Google 日曆');
       const page = await response.json();
       matches.push(...(page.items || []).filter(item => item.summary === 'Work' && item.timeZone === 'Asia/Taipei'));
       pageToken = page.nextPageToken;
@@ -47,7 +64,7 @@ const ORTHO_CALENDAR = {
     };
     const query = new URLSearchParams({ privateExtendedProperty: 'orthoDay=' + dayKey });
     const response = await this.request(path + '?' + query);
-    if (!response.ok) throw new Error('無法查詢報備');
+    if (!response.ok) throw await this.failure(response, '無法查詢報備');
     const result = await response.json();
     let matches = (result.items || []).filter(item => item.status !== 'cancelled');
     if (matches.length > 1 || result.nextPageToken) throw new Error('找到多筆報備');
@@ -59,7 +76,7 @@ const ORTHO_CALENDAR = {
         timeZone: 'Asia/Taipei',
       });
       const dayResponse = await this.request(path + '?' + dayQuery);
-      if (!dayResponse.ok) throw new Error('無法查詢既有報備');
+      if (!dayResponse.ok) throw await this.failure(dayResponse, '無法查詢既有報備');
       const day = await dayResponse.json();
       matches = (day.items || []).filter(item =>
         item.status !== 'cancelled' && item.summary === event.summary &&
@@ -80,7 +97,7 @@ const ORTHO_CALENDAR = {
           { ...event, conferenceData: null }, headers)
         : await this.request(itemPath + '?sendUpdates=none', method, undefined, headers);
       if (!saved.ok && !(method === 'DELETE' && [404, 410].includes(saved.status))) {
-        throw new Error('無法更新報備');
+        throw await this.failure(saved, '無法更新或刪除報備');
       }
       return;
     }
@@ -92,7 +109,7 @@ const ORTHO_CALENDAR = {
       const id = baseId + generation.toString(32);
       const created = await this.request(path + '?conferenceDataVersion=1&sendUpdates=none', 'POST', { ...event, id });
       if (created.ok) return;
-      if (created.status !== 409) break;
+      if (created.status !== 409) throw await this.failure(created, '無法建立報備');
       const existing = await this.request(path + '/' + id);
       if (existing.status === 410) continue;
       if (!existing.ok) break;
@@ -103,7 +120,7 @@ const ORTHO_CALENDAR = {
       const updated = await this.request(path + '/' + id + '?conferenceDataVersion=1&sendUpdates=none', 'PATCH',
         { ...event, conferenceData: null }, headers);
       if (updated.ok) return;
-      break;
+      throw await this.failure(updated, '無法更新報備');
     }
     throw new Error('無法建立報備');
   },
