@@ -8,12 +8,18 @@ const ORTHO_CALENDAR = {
       options.headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
     }
-    let response = await fetch('https://www.googleapis.com/calendar/v3/' + path, options);
-    if (response.status === 401 && await AUTH._doRefresh()) {
-      Object.assign(options.headers, SHEETS.hdrs());
-      response = await fetch('https://www.googleapis.com/calendar/v3/' + path, options);
+    const started = performance.now();
+    try {
+      let response = await fetch('https://www.googleapis.com/calendar/v3/' + path, options);
+      if (response.status === 401 && await AUTH._doRefresh()) {
+        Object.assign(options.headers, SHEETS.hdrs());
+        response = await fetch('https://www.googleapis.com/calendar/v3/' + path, options);
+      }
+      if ([403, 404].includes(response.status)) this.workCache = null;
+      return response;
+    } finally {
+      console.info('[日曆同步] Calendar ' + method + ' ' + Math.round(performance.now() - started) + ' ms');
     }
-    return response;
   },
 
   async failure(response, operation) {
@@ -34,6 +40,10 @@ const ORTHO_CALENDAR = {
   },
 
   async findWork() {
+    const account = AUTH.userInfo?.email;
+    if (account && this.workCache?.account === account && this.workCache.until > Date.now()) {
+      return this.workCache.id;
+    }
     const matches = [];
     let pageToken;
     do {
@@ -46,7 +56,30 @@ const ORTHO_CALENDAR = {
       pageToken = page.nextPageToken;
     } while (pageToken);
     if (matches.length !== 1) throw new Error('找不到唯一的 Work 日曆');
-    return matches[0].id;
+    const id = matches[0].id;
+    if (account) this.workCache = { account, id, until: Date.now() + 5 * 60 * 1000 };
+    return id;
+  },
+
+  eventCache(calendar) {
+    const account = AUTH.userInfo?.email;
+    if (!account) return null;
+    const key = 'ortho_calendar_events:' + JSON.stringify([account, calendar]);
+    try {
+      const entries = new Map(JSON.parse(localStorage.getItem(key) || '[]'));
+      return { key, entries };
+    } catch (error) {
+      return null;
+    }
+  },
+
+  cacheEvent(cache, date, event) {
+    if (!cache) return;
+    cache.entries.delete(date);
+    if (event?.id && event.etag) cache.entries.set(date, { id: event.id, etag: event.etag });
+    try {
+      localStorage.setItem(cache.key, JSON.stringify([...cache.entries].slice(-180)));
+    } catch (error) {}
   },
 
   async syncDay(calendar, date, surgeries) {
@@ -62,6 +95,21 @@ const ORTHO_CALENDAR = {
       attendees: [],
       extendedProperties: { private: { orthoDay: dayKey } },
     };
+    const cache = this.eventCache(calendar);
+    const cached = cache?.entries.get(date);
+    const patch = { ...event, conferenceData: null };
+    const writeOptions = '?conferenceDataVersion=1&sendUpdates=none';
+    // If the event changed since the last write, Google rejects the cached ETag.
+    if (surgeries.length && cached?.id && cached.etag) {
+      const saved = await this.request(path + '/' + encodeURIComponent(cached.id) + writeOptions,
+        'PATCH', patch, { 'If-Match': cached.etag });
+      if (saved.ok) {
+        this.cacheEvent(cache, date, await saved.json().catch(() => null));
+        return;
+      }
+      if (![404, 410, 412].includes(saved.status)) throw await this.failure(saved, '無法更新報備');
+      this.cacheEvent(cache, date, null);
+    }
     const query = new URLSearchParams({ privateExtendedProperty: 'orthoDay=' + dayKey });
     const response = await this.request(path + '?' + query);
     if (!response.ok) throw await this.failure(response, '無法查詢報備');
@@ -93,22 +141,28 @@ const ORTHO_CALENDAR = {
       const itemPath = path + '/' + encodeURIComponent(existing.id);
       const method = surgeries.length ? 'PATCH' : 'DELETE';
       const saved = method === 'PATCH'
-        ? await this.request(itemPath + '?conferenceDataVersion=1&sendUpdates=none', method,
-          { ...event, conferenceData: null }, headers)
+        ? await this.request(itemPath + writeOptions, method, patch, headers)
         : await this.request(itemPath + '?sendUpdates=none', method, undefined, headers);
       if (!saved.ok && !(method === 'DELETE' && [404, 410].includes(saved.status))) {
         throw await this.failure(saved, '無法更新或刪除報備');
       }
+      this.cacheEvent(cache, date, method === 'PATCH' ? await saved.json().catch(() => null) : null);
       return;
     }
-    if (!surgeries.length) return;
+    if (!surgeries.length) {
+      this.cacheEvent(cache, date, null);
+      return;
+    }
 
     // 用固定的日期 ID 防止同時新增重複事件。Google 若仍保留已刪事件的 ID，改用下一代 ID。
     const baseId = 'ortho' + date.replace(/-/g, '');
     for (let generation = 0; generation < 32; generation++) {
       const id = baseId + generation.toString(32);
-      const created = await this.request(path + '?conferenceDataVersion=1&sendUpdates=none', 'POST', { ...event, id });
-      if (created.ok) return;
+      const created = await this.request(path + writeOptions, 'POST', { ...event, id });
+      if (created.ok) {
+        this.cacheEvent(cache, date, await created.json().catch(() => null));
+        return;
+      }
       if (created.status !== 409) throw await this.failure(created, '無法建立報備');
       const existing = await this.request(path + '/' + id);
       if (existing.status === 410) continue;
@@ -117,9 +171,11 @@ const ORTHO_CALENDAR = {
       if (found.status === 'cancelled') continue;
       if (found.extendedProperties?.private?.orthoDay !== dayKey) break;
       const headers = found.etag ? { 'If-Match': found.etag } : {};
-      const updated = await this.request(path + '/' + id + '?conferenceDataVersion=1&sendUpdates=none', 'PATCH',
-        { ...event, conferenceData: null }, headers);
-      if (updated.ok) return;
+      const updated = await this.request(path + '/' + id + writeOptions, 'PATCH', patch, headers);
+      if (updated.ok) {
+        this.cacheEvent(cache, date, await updated.json().catch(() => null));
+        return;
+      }
       throw await this.failure(updated, '無法更新報備');
     }
     throw new Error('無法建立報備');

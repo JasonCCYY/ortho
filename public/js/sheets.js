@@ -137,6 +137,26 @@ const SHEETS = {
     return fresh ? load() : this.cached('op', load);
   },
 
+  async loadCalendarSurgeryRecords() {
+    const query = new URLSearchParams();
+    query.append('ranges', "'" + this.T.op + "'!A1:A");
+    query.append('ranges', "'" + this.T.op + "'!G1:G");
+    const url = `${this.BASE}/${this.ID}/values:batchGet?${query}`;
+    const response = await fetch(url, { headers: this.hdrs() });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) AUTH.handleExpired();
+      throw new Error('無法讀取手術日期和名稱（HTTP ' + response.status + '）');
+    }
+    const { valueRanges } = await response.json();
+    const dates = valueRanges?.[0]?.values || [];
+    const names = valueRanges?.[1]?.values || [];
+    if (String(dates[0]?.[0] || '').trim() !== '日期' ||
+        !['名稱', '術式'].includes(String(names[0]?.[0] || '').trim())) {
+      return this.loadOpRecords({ fresh: true });
+    }
+    return dates.slice(1).map(([date], index) => ({ date, opName: names[index + 1]?.[0] || '' }));
+  },
+
   async loadTrackRecords() {
     const load = async () => {
       const hRow = await this.read(this.T.track, 'A1:K1');

@@ -78,6 +78,7 @@ const APP = {
         const date = this.toISO(value);
         const parsed = new Date(date);
         if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date) {
+          delete pending[date];
           pending[date] = crypto.randomUUID();
         }
       }
@@ -99,11 +100,14 @@ const APP = {
     const key = this._calendarQueueKey();
     this._syncingCalendar = true;
     let synced = false;
+    const started = performance.now();
     try {
       while (Object.keys(this._calendarPending(key)).length) {
         const pending = this._calendarPending(key);
-        const calendar = await ORTHO_CALENDAR.findWork();
-        const records = await SHEETS.loadOpRecords({ fresh: true });
+        const [calendar, records] = await Promise.all([
+          this._measureCalendarSync('Work 查找', () => ORTHO_CALENDAR.findWork()),
+          this._measureCalendarSync('Sheets 讀取', () => SHEETS.loadCalendarSurgeryRecords()),
+        ]);
         const failures = [];
         for (const [date, revision] of Object.entries(pending)) {
           const current = this._calendarPending(key);
@@ -115,7 +119,8 @@ const APP = {
             synced = true;
           } catch (error) {
             failures.push(date + '：' + error.message);
-            continue;
+            // 改期先排入新日。新日失敗時保留其後待同步的舊日，避免先移除舊報備。
+            break;
           }
           const remaining = this._calendarPending(key);
           if (remaining[date] === revision) {
@@ -143,6 +148,18 @@ const APP = {
       status.hidden = false;
     } finally {
       this._syncingCalendar = false;
+      if (synced || !status.hidden) {
+        console.info('[日曆同步] 總耗時 ' + Math.round(performance.now() - started) + ' ms');
+      }
+    }
+  },
+
+  async _measureCalendarSync(label, task) {
+    const started = performance.now();
+    try {
+      return await task();
+    } finally {
+      console.info('[日曆同步] ' + label + ' ' + Math.round(performance.now() - started) + ' ms');
     }
   },
 
