@@ -1672,14 +1672,16 @@ const APP = {
       this.groupByMonth(recs).forEach(([m, rows]) => {
         const total = rows.reduce((s,r)=>s+(parseFloat(String(r.price).replace(/,/g,''))||0)*(parseInt(r.qty)||1),0);
         html += `<div class="list-month-hdr">${m} <span class="month-badge">$${total.toLocaleString()}</span></div>`;
-        // 父項：術式+代碼，子項：病患
+        // 右昌的術式與代碼獨立分組，子項仍按原始紀錄展開。
         const groups = {};
         rows.forEach(r => {
-          const key = (r.code||'')+'|'+(r.name||'');
-          if(!groups[key]) groups[key] = { code:r.code, name:r.name, price:r.price, area:r.area, type:resolveType(r), rows:[] };
+          const isYouchang = String(r.area || '').trim() === '右昌';
+          const key = JSON.stringify([isYouchang, r.code || '', r.name || '']);
+          if(!groups[key]) groups[key] = { code:r.code, name:r.name, price:r.price, isYouchang, type:resolveType(r), rows:[] };
           groups[key].rows.push(r);
         });
         const sorted = Object.values(groups).sort((a,b) => {
+          if (a.isYouchang !== b.isYouchang) return a.isYouchang ? 1 : -1;
           const aN = a.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.code));
           const bN = b.rows.some(r=>this._isAddedToday('code', r.date+'|'+r.code));
           if(aN&&!bN) return -1; if(!aN&&bN) return 1;
@@ -1692,7 +1694,7 @@ const APP = {
           const totalVal = cleanP*totalQty;
           const t = g.type;
           const detailId = 'cr-det-'+(detailCtr++);
-          const tagInner = g.area==='右昌'
+          const tagInner = g.isYouchang
             ? `<span class="col-area" style="width:auto;font-size:.75rem">右昌</span>`
             : (t?`<span class="badge badge-${t}" style="font-size:.65rem;padding:1px 5px">${t}</span>`:'');
           const subLine = totalQty>1&&cleanP?`<span class="mat-agg-sub">*${totalQty}=$${totalVal.toLocaleString()}</span>`:'';
