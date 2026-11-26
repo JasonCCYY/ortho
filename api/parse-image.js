@@ -29,16 +29,27 @@ function geminiRequest(body) {
   });
 }
 
-function rocToAD(s) {
-  s = String(s).replace(/\D/g, '');
-  if (s.length === 7) return `${parseInt(s.slice(0,3))+1911}/${s.slice(3,5)}/${s.slice(5,7)}`;
-  if (s.length === 8) return `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)}`;
-  return null;
+function rocToAD(value) {
+  const text = String(value ?? '').normalize('NFKC').trim();
+  const compact = text.match(/^(\d{3,4})(\d{2})(\d{2})$/);
+  const separated = text.match(/^(?:民國\s*)?(\d{2,4})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})$/);
+  const parts = compact || separated;
+  if (!parts) return null;
+  const [, yearText, monthText, dayText] = parts;
+  const year = Number(yearText) + (yearText.length < 4 ? 1911 : 0);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (Number(yearText) === 0 || year < 1912 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) return null;
+  return [year, String(month).padStart(2, '0'), String(day).padStart(2, '0')].join('/');
 }
 function stripZeros(s) { return s ? String(s).replace(/^0+/,'') || '0' : ''; }
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+function todayStr(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type).value).join('/');
 }
 
 module.exports = async (req, res) => {
@@ -75,13 +86,15 @@ module.exports = async (req, res) => {
 
 【重要】每張圖片含一個黃色彈出框，每張圖片回傳一筆資料（3張圖片→3筆）。
 背景白色欄位（格式「病歷號 醫師名 _病患名」）一律忽略，即使內容與黃色框相似也不可讀取。
-唯一例外：左上方「手術日期」欄位可讀取。
+【手術日期先讀】每張圖片先獨立檢查左上方黃色「手術室設定」區，再讀黃色彈出框。
+「手術日期」常分兩行顯示為「手術」和「日期」，日期在它右側的灰白輸入框，通常在查詢和列印按鈕左側。例如若示意值為 1160314，date_roc 回傳 "1160314"。
+即使標籤被裁切，若仍能從位置和輸入框確定它是手術日期，且所有數字清楚可讀，亦可擷取。輸入框未入鏡、數字不完整或無法確認時回傳 null。禁止用病歷號、手術單號或其他圖片的日期補值。
 
 擷取該黃色框的以下欄位（不確定來源則填null/[]）：
 
-1. mrn: 「病患:」標籤後的純數字（通常7-10位，含前導零，如0000277662）
+1. mrn: 「病患:」標籤後的純數字（通常 7–10 位，保留前導零）
 2. name: 「病患:」標籤後的姓名（2-4個中文字，逐字讀取勿遺漏）
-3. date_roc: 左上方「手術日期」民國年數字（如1151120）
+3. date_roc: 此張圖左上方手術日期輸入框的完整數字（民國 YYYMMDD 或西元 YYYYMMDD），看不到或無法確認則填 null
 4. codes: 「手術批價碼:」標籤後的代碼陣列。手術代碼固定5位純數字（如64286、64087），每組只取開頭5位數字（64286-關節鏡下旋轉肌→64286）；多組以-/、/,分隔；病歷號不是代碼；無則[]
 5. note: 「備註:」標籤後的完整文字
 6. opName: 查表流程：手術批價碼（5位數）→ 以下代碼對照表查出類型 → 從類型清單選最接近名稱；若代碼查無類型或清單無符合，再從「手術批價碼:」的說明文字推斷（VP=vertebroplasty, KP=kyphoplasty）；不可用背景欄位文字；完全無法判斷則null${codeTypes && Object.keys(codeTypes).length ? `
@@ -132,7 +145,7 @@ ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).joi
     const patients = (parsed.patients||[]).map(p => ({
       mrn:   stripZeros(p.mrn),
       name:  p.name||'',
-      date:  (() => { const d = (p.date_roc ? rocToAD(p.date_roc) : null) || today; return d < today ? today : d; })(),
+      date:  rocToAD(p.date_roc) || today,
       codes: [...new Set((p.codes||[]).map(c=>String(c).trim()).filter(c=>/^\d+$/.test(c)))],
       note:  p.note||'',
       opName:   p.opName   && p.opName   !== 'null' ? p.opName   : '',
