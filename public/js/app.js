@@ -671,7 +671,7 @@ const APP = {
         }
         const recognized = this._matchScanImplants(p.implants, products, '中正');
         if(recognized.length) {
-          const labels = recognized.map(c => this._esc(c.brand + ' ' + c.product + (c.qty > 1 ? ' ×' + c.qty : '')));
+          const labels = recognized.map(c => this._esc(this._implantLabel(c, catalog) + (c.qty > 1 ? ' ×' + c.qty : '')));
           html += `<div class="scan-note" style="color:var(--accent)">骨材：${labels.join('、')}</div>`;
         }
 

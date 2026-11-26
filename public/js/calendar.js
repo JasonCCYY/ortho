@@ -104,9 +104,10 @@ const ORTHO_CALENDAR = {
     const path = 'calendars/' + encodeURIComponent(calendar) + '/events';
     const dayKey = SHEETS.ID + ':' + date;
     const next = new Date(date);
+    const weekday = next.getUTCDay();
     next.setUTCDate(next.getUTCDate() + 1);
     const event = {
-      summary: '刀📌報備',
+      summary: weekday === 3 || weekday === 5 ? '刀📌' : '刀🔴報備',
       description: surgeries.join('\n'),
       start: { date },
       end: { date: next.toISOString().slice(0, 10) },
@@ -164,7 +165,7 @@ const ORTHO_CALENDAR = {
       if (!dayResponse.ok) throw await this.failure(dayResponse, '無法查詢既有報備');
       const day = await dayResponse.json();
       matches = (day.items || []).filter(item =>
-        item.status !== 'cancelled' && [event.summary, '🔴報備'].includes(item.summary) &&
+        item.status !== 'cancelled' && ['刀📌', '刀🔴報備', '刀📌報備', '🔴報備'].includes(item.summary) &&
         item.start?.date === date && item.end?.date === event.end.date &&
         !item.recurringEventId && !item.recurrence?.length &&
         item.organizer?.self === true
