@@ -2626,7 +2626,10 @@ const APP = {
       const typeBones = boneCats.filter(c=>c.type===type);
       const brands = [...new Set(typeBones.map(c=>c.brand))];
       const defBrand = type==='Trauma' ? 'AO' : 'United';
-      const startBrand = brands.includes(defBrand) ? defBrand : (brands[0]||'');
+      const editingTrauma = type === 'Trauma' && (wrapId === 'es-bone-wrap' || wrapId === 'et-bone-wrap');
+      const startBrand = editingTrauma
+        ? (typeBones.find(c => map.has(c.brand + '|' + c.product))?.brand || '')
+        : (brands.includes(defBrand) ? defBrand : (brands[0] || ''));
       if (brands.length) {
         h += `<div class="bone-section">廠牌</div><div class="chip-row wrap bone-brand-row" style="margin-top:6px">`;
         brands.forEach(b => {
