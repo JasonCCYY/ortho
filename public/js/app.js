@@ -1834,7 +1834,13 @@ const APP = {
     else this.qAddCode(r.name, r.code, r.price, r.area, r.type||'', '手動');
   },
   async qAddClinic(name, price) {
-    try { await SHEETS.quickAddClinic(name, price); this._markAddedToday('clinic', SHEETS.nowMonth()+'|'+name); this.toast(`✅ 已新增 ${name}`); this.loadClinic(); }
+    const date = SHEETS.nowDate();
+    try {
+      await SHEETS.quickAddClinic(name, price, date);
+      this._markAddedToday('clinic', date+'|'+name);
+      this.toast(`✅ 已新增 ${name}`);
+      this.loadClinic();
+    }
     catch(e) { this.toast('❌ '+e.message); }
   },
   async markDone(row) {

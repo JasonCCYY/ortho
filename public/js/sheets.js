@@ -581,9 +581,9 @@ const SHEETS = {
     localStorage.removeItem('ortho_codeRec2'); return r;
   },
 
-  async quickAddClinic(name, price) {
+  async quickAddClinic(name, price, date = this.nowDate()) {
     const cleanP = parseFloat(String(price).replace(/,/g,'')) || 0;
-    const r = await this.append(this.T.clinic, [[this._d(this.nowMonth()),name,cleanP,'1']]);
+    const r = await this.append(this.T.clinic, [[this._d(date),name,cleanP,'1']]);
     localStorage.removeItem('ortho_clinic2'); return r;
   },
 
