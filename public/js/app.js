@@ -1242,6 +1242,7 @@ const APP = {
       { cat:'',         label:'RTSA', re:/RTSA/i },
       { cat:'關節鏡',   label:'RCT',  re:/RCT(?!\s*open)/i },
       { cat:'',         label:'SLAP', re:/SLAP/i },
+      { cat:'',         label:'knee scope', re:/\bknee\s+scope\b/i },
       { cat:'',         label:'ACLR', re:/ACLR/i },
     ];
     const TYPE_COLOR = { Sports:'#9a7a00', Trauma:'#0369a1', Joint:'#c45a10', Spine:'#15803d', Hand:'#7e22ce', Tumor:'#b91c1c', ROI:'#475569' };
