@@ -1783,6 +1783,7 @@ const APP = {
       });
 
       // Records section
+      const today = this.toISO(this.today());
       html += `<div class="clinic-section-hdr">門診記錄</div>`;
       this.groupByMonth(records).forEach(([m,rows]) => {
         const mTotal = rows.reduce((s,r)=>{
@@ -1795,7 +1796,7 @@ const APP = {
           return oa!==ob ? oa-ob : b.date.localeCompare(a.date);
         });
         sortedRows.forEach(r => {
-          const isNew=this._isAddedToday('clinic', r.date+'|'+r.product) || r.date === this.today();
+          const isNew = this.toISO(r.date) === today;
           const _si=APP._storeRow(r);
           const cleanP=parseFloat(String(r.price||0).replace(/,/g,''))||0;
           const rowTotal=cleanP*(parseInt(r.qty)||1);
