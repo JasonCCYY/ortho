@@ -578,12 +578,15 @@ const APP = {
         img.onerror = reject;
         img.src = url;
       });
-      const images = await Promise.all(files.map(toBase64));
+      const [images, catalog, preloadedCodes] = await Promise.all([
+        Promise.all(files.map(toBase64)),
+        SHEETS.loadMatProducts(),
+        SHEETS.loadOpCodes(),
+      ]);
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
-      const products = (await SHEETS.loadMatProducts()).filter(c => c.brand && c.product && (!c.hospital || c.hospital === '中正'));
-      const boneItems = [...new Set(products.map(c => c.product))];
+      const products = catalog.filter(c => c.brand && c.product && (!c.hospital || c.hospital === '中正'));
       const abbrevList = products.filter(c => c.abbrev).map(c => `${c.abbrev}=${c.brand} ${c.product}`);
       const brandProducts = Object.create(null);
       products.forEach(c => {
@@ -598,7 +601,6 @@ const APP = {
         opCatsByType[c.type].push(c.name);
       });
       // 代碼→類別 對照表，送給 AI 做查詢
-      const preloadedCodes = await SHEETS.loadOpCodes();
       const codeTypes = {};
       preloadedCodes.forEach(c => { if(c.code && c.type) codeTypes[String(c.code).trim()] = c.type; });
 
@@ -606,7 +608,7 @@ const APP = {
         fetch('/api/parse-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images, opCatsByType, codeTypes, boneItems, abbrevList, brandProducts }),
+          body: JSON.stringify({ images, opCatsByType, codeTypes, abbrevList, brandProducts }),
         }),
       ]);
       console.log('[scan] response status:', res.status);
@@ -766,7 +768,7 @@ const APP = {
 
       const products = await SHEETS.loadMatProducts();
       const boneSels = this._matchScanImplants(p.implants, products, '中正');
-      const implant = boneSels.map(c => this._implantLabel(c, products) + (c.qty > 1 ? '*' + c.qty : '')).join(' , ');
+      const implant = this._formatScanImplants(boneSels, products);
 
       if(await this._checkDuplicate(p.name, p.date) && !confirm(`${p.date} 已有「${p.name}」的手術紀錄，確定仍要新增？`)) return;
 
@@ -2288,7 +2290,7 @@ const APP = {
       const catalog = fromScan && d.implant ? await SHEETS.loadMatProducts() : [];
       const scanned = fromScan ? this._matchScanImplants(d.implant.split(' , '), catalog, d.area) : [];
       if (fromScan) {
-        d.implant = scanned.map(c => this._implantLabel(c, catalog) + (c.qty > 1 ? '*' + c.qty : '')).join(' , ');
+        d.implant = this._formatScanImplants(scanned, catalog);
       }
       d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
@@ -2493,6 +2495,12 @@ const APP = {
       selections.set(key, { ...product, qty: qty + (current?.qty || 0) });
     }
     return [...selections.values()];
+  },
+  _formatScanImplants(selections, products) {
+    return selections.map(item => {
+      const label = String(item.surgRecord || '').trim() || this._implantLabel(item, products);
+      return label + (item.qty > 1 ? '*' + item.qty : '');
+    }).join(' , ');
   },
   _implantLabel(item, products) {
     return products.some(c => c.product === item.product && c.brand !== item.brand)

@@ -89,11 +89,13 @@ module.exports = async (req, res) => {
    類型→名稱清單:
 ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
 7. location: 手術部位。脊椎手術→椎節（如L3、T12、L3-L4）；四肢/關節→Rt/Lt/Bilateral；無法辨識→null
-8. implants: 只回傳可在骨材清單或廠牌對照中核對的產品，使用清單上的原始產品名稱及廠牌，不增減規格單位；無法唯一確認、僅辨識到廠牌或無產品則省略，無則[]${boneItems && boneItems.length ? `
-   骨材縮寫：「縮寫*N」→「完整名 ×N」；縮寫前若有多餘的;、,、*、空格等分隔符應忽略（如「;*I*2」=「I*2」=「完整名 ×2」）${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
-   骨材清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
-   廠牌：有明確產品或縮寫時，僅使用廠牌對照表的對應廠牌；只有廠牌時不得推斷產品
-   廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
+8. implants: 從黃色框備註辨識骨材，依序使用以下規則：
+   先比對已登記的縮寫。「縮寫*N」回傳「廠牌 產品 ×N」，忽略縮寫前的分隔符（例如 ;*I*2）。
+   沒有符合的縮寫時，用可見的品名片段、可辨認的廠牌、規格和手術上下文，從清單選出最可能的產品。只有廠牌或只有手術名稱時，若清單上仍有多個合理候選，省略該品項；規格矛盾也省略。
+   一律回傳清單中的原始廠牌與品名，不新增品項或改寫規格；沒有可靠候選則回傳 []。${abbrevList && abbrevList.length ? `
+   辨識縮寫對照（縮寫=廠牌 產品）: ${abbrevList.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
+   骨材清單（廠牌→產品）: ${JSON.stringify(brandProducts)}` : boneItems && boneItems.length ? `
+   骨材清單: ${boneItems.join('、')}` : ''}
 
 備註解析範例：
   「L3 VP; depuy (PASS)」→ location=L3、opName=vertebroplasty、implants=[]
