@@ -89,18 +89,18 @@ module.exports = async (req, res) => {
    類型→名稱清單:
 ${Object.entries(opCatsByType).map(([t,ns]) => `   ${t}: ${ns.join('、')}`).join('\n')}` : ''}
 7. location: 手術部位。脊椎手術→椎節（如L3、T12、L3-L4）；四肢/關節→Rt/Lt/Bilateral；無法辨識→null
-8. implants: 從備註辨識骨材/生長因子及廠牌，回傳陣列；無則[]${boneItems && boneItems.length ? `
+8. implants: 只回傳可在骨材清單或廠牌對照中核對的產品，使用清單上的原始產品名稱及廠牌，不增減規格單位；無法唯一確認、僅辨識到廠牌或無產品則省略，無則[]${boneItems && boneItems.length ? `
    骨材縮寫：「縮寫*N」→「完整名 ×N」；縮寫前若有多餘的;、,、*、空格等分隔符應忽略（如「;*I*2」=「I*2」=「完整名 ×2」）${abbrevList && abbrevList.length ? `；對照: ${abbrevList.join('、')}` : ''}
    骨材清單: ${boneItems.join('、')}` : ''}${brandProducts && Object.keys(brandProducts).length ? `
-   廠牌：備註只有廠牌時，結合手術context推斷產品後加入implants（如「AO」+Radius→「AO Radius」），查無則只用廠牌名
+   廠牌：有明確產品或縮寫時，僅使用廠牌對照表的對應廠牌；只有廠牌時不得推斷產品
    廠牌對照: ${JSON.stringify(brandProducts)}` : ''}
 
 備註解析範例：
-  「L3 VP; depuy (PASS)」→ location=L3、opName=vertebroplasty、implants=["Depuy"]
-  「Rt radius; AO」→ location=Rt、opName=Forearm、implants=["AO"]
+  「L3 VP; depuy (PASS)」→ location=L3、opName=vertebroplasty、implants=[]
+  「Rt radius; AO」→ location=Rt、opName=Forearm、implants=[]
 
 只回傳JSON，不加說明：
-{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"L3或Rt或null","implants":["Depuy","Iconix ×2"]}]}
+{"patients":[{"mrn":"純數字","name":"姓名","date_roc":"1150612","codes":["64087"],"note":"備註","opName":"名稱或null","location":"L3或Rt或null","implants":[]}]}
 若無黃色框：{"patients":[]}` });
 
     console.log('[parse-image] calling Gemini, parts:', parts.length);

@@ -582,15 +582,11 @@ const APP = {
       console.log('[scan] images:', images.length, images.map(i => Math.round(i.length/1024)+'KB'));
 
       // 送後端解析（附上 OP分類 名稱清單供手術名稱辨識）
-      const boneCatsAll = SHEETS.boneCats || [];
-      const boneItems = [
-        ...boneCatsAll.map(c => c.product),
-        ...boneCatsAll.map(c => c.brand),
-        ...(SHEETS.growthFactors||[]),
-      ].filter((v,i,a) => v && a.indexOf(v)===i);
-      const abbrevList = Object.entries(SHEETS.boneAbbrevs||{}).map(([k,v]) => `${k}=${v}`);
-      const brandProducts = {};
-      boneCatsAll.forEach(c => {
+      const products = (await SHEETS.loadMatProducts()).filter(c => c.brand && c.product && (!c.hospital || c.hospital === '中正'));
+      const boneItems = [...new Set(products.map(c => c.product))];
+      const abbrevList = products.filter(c => c.abbrev).map(c => `${c.abbrev}=${c.brand} ${c.product}`);
+      const brandProducts = Object.create(null);
+      products.forEach(c => {
         if (!brandProducts[c.brand]) brandProducts[c.brand] = [];
         if (!brandProducts[c.brand].includes(c.product)) brandProducts[c.brand].push(c.product);
       });
@@ -663,8 +659,10 @@ const APP = {
         if(p.note) {
           html += `<div class="scan-note">備註：${p.note}</div>`;
         }
-        if(p.implants && p.implants.length) {
-          html += `<div class="scan-note" style="color:var(--accent)">骨材：${p.implants.join('、')}</div>`;
+        const recognized = this._matchScanImplants(p.implants, products, '中正');
+        if(recognized.length) {
+          const labels = recognized.map(c => this._esc(c.brand + ' ' + c.product + (c.qty > 1 ? ' ×' + c.qty : '')));
+          html += `<div class="scan-note" style="color:var(--accent)">骨材：${labels.join('、')}</div>`;
         }
 
         if(matchedCodes.length) {
@@ -766,21 +764,9 @@ const APP = {
       // 從代碼取類型（取第一個有 type 的代碼）
       const typeFromCode = (p.matchedCodes || []).map(c => c.type).find(t => t) || '';
 
-      // 建立骨材字串（使用 surgRecord）
-      let implant = '';
-      if (p.implants && p.implants.length) {
-        const allProds = SHEETS.matProds || [];
-        implant = p.implants.map(impl => {
-          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
-          const text = qm ? qm[1].trim() : impl.trim();
-          const qty  = qm ? parseInt(qm[2]) : 1;
-          const m = allProds.find(c => c.product.toLowerCase() === text.toLowerCase())
-                 || allProds.find(c => (c.brand+' '+c.product).toLowerCase() === text.toLowerCase())
-                 || allProds.find(c => c.surgRecord && c.surgRecord.toLowerCase() === text.toLowerCase());
-          const label = m?.product || text;
-          return qty > 1 ? label + '*' + qty : label;
-        }).join(' , ');
-      }
+      const products = await SHEETS.loadMatProducts();
+      const boneSels = this._matchScanImplants(p.implants, products, '中正');
+      const implant = boneSels.map(c => this._implantLabel(c, products) + (c.qty > 1 ? '*' + c.qty : '')).join(' , ');
 
       if(await this._checkDuplicate(p.name, p.date) && !confirm(`${p.date} 已有「${p.name}」的手術紀錄，確定仍要新增？`)) return;
 
@@ -808,21 +794,11 @@ const APP = {
         this._markAddedToday('code', p.date+'|'+c.code);
       }
 
-      // 同步骨材記錄
-      if (implant) {
-        const matProds = await SHEETS.loadMatProducts();
-        const boneSels = this._parseImplantToSelections(implant, SHEETS.boneCats || []);
-        for (const s of boneSels) {
-          if (!s.product) continue;
-          const prod = matProds.find(mp => mp.brand === s.brand && mp.product === s.product)
-                    || matProds.find(mp => mp.product === s.product);
-          const matBrand = s.brand || prod?.brand || s.product;
-          await SHEETS.addMatFromSurgery({
-            date: p.date, brand: matBrand,
-            product: s.product, price: prod?.price || '', qty: s.qty || 1, patient: p.name
-          });
-          this._markAddedToday('mat', p.date+'|'+matBrand+'|'+s.product+'|'+p.name);
-        }
+      for (const c of boneSels) {
+        await SHEETS.addMatFromSurgery({
+          date: p.date, brand: c.brand, product: c.product, price: c.price || '', qty: c.qty, patient: p.name
+        });
+        this._markAddedToday('mat', [p.date, c.brand, c.product, p.name].join('|'));
       }
 
       this.toast(`✅ ${p.name} 已新增`);
@@ -971,20 +947,9 @@ const APP = {
       }
       // 自動勾選骨材/生長因子（解析數量）
       if(p.implants && p.implants.length) {
-        const bCats = SHEETS.boneCats || [];
         const map = this._getBoneMap('s-bone-wrap');
-        p.implants.forEach(impl => {
-          const qm = impl.match(/^(.+?)\s*[×*]\s*(\d+)$/);
-          const text = qm ? qm[1].trim() : impl.trim();
-          const qty  = qm ? parseInt(qm[2]) : 1;
-          const byBP = bCats.find(c => (c.brand+' '+c.product).toLowerCase()===text.toLowerCase());
-          const byP  = bCats.find(c => c.product.toLowerCase()===text.toLowerCase());
-          const byB  = bCats.find(c => c.brand.toLowerCase()===text.toLowerCase());
-          const gf   = (SHEETS.growthFactors||[]).find(g => g.toLowerCase()===text.toLowerCase());
-          const m = byBP || byP || byB;
-          if (m) map.set(m.brand+'|'+m.product, qty);
-          else if (gf) map.set('|'+gf, qty);
-        });
+        const products = this._matchScanImplants(p.implants, SHEETS.matProds || [], '中正');
+        products.forEach(c => map.set((c.type === '生長因子' ? '' : c.brand) + '|' + c.product, c.qty));
         // Refresh visible chip states
         document.querySelectorAll('#s-bone-wrap .bone-toggle').forEach(btn => {
           const key = (btn.dataset.brand||'') + '|' + (btn.dataset.product||'');
@@ -2318,8 +2283,13 @@ const APP = {
     if(await this._checkDuplicate(d.name, d.date) && !confirm(`${d.date} 已有「${d.name}」的手術紀錄，確定仍要新增？`)) return;
     this._savingOp = true;
     const btn=this._lockSaveBtn('modal-op');
-    this._scanEditIdx = null;
+    const fromScan = this._scanEditIdx != null;
     try{
+      const catalog = fromScan && d.implant ? await SHEETS.loadMatProducts() : [];
+      const scanned = fromScan ? this._matchScanImplants(d.implant.split(' , '), catalog, d.area) : [];
+      if (fromScan) {
+        d.implant = scanned.map(c => this._implantLabel(c, catalog) + (c.qty > 1 ? '*' + c.qty : '')).join(' , ');
+      }
       d.codes = (this._pendingOpCodes||[]).map(c=>c.code).join(',');
       await SHEETS.addOp(d);
       this.queueCalendar(d.date);
@@ -2331,7 +2301,12 @@ const APP = {
       }
       this._pendingOpCodes = [];
       // Sync bone chips → 骨材記錄
-      if (d.implant) {
+      if (fromScan) {
+        for (const c of scanned) {
+          await SHEETS.addMatFromSurgery({ date:d.date, brand:c.brand, product:c.product, price:c.price || '', qty:c.qty, patient:d.name });
+          this._markAddedToday('mat', [d.date, c.brand, c.product, d.name].join('|'));
+        }
+      } else if (d.implant) {
         const matProds = await SHEETS.loadMatProducts();
         const boneSels = this._parseImplantToSelections(d.implant, SHEETS.boneCats || []);
         for (const s of boneSels) {
@@ -2493,6 +2468,36 @@ const APP = {
     if (!this._boneState[wrapId]) this._boneState[wrapId] = new Map();
     return this._boneState[wrapId];
   },
+  _matchScanImplants(implants, products, area) {
+    const normalize = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+    const catalog = products.filter(c => c.brand && c.product && (!c.hospital || c.hospital === area));
+    const selections = new Map();
+    for (const implant of Array.isArray(implants) ? implants : []) {
+      if (typeof implant !== 'string') continue;
+      const quantity = implant.match(/^(.+?)\s*[×*]\s*(\d+)$/);
+      const name = normalize(quantity ? quantity[1] : implant);
+      const qty = quantity ? Number(quantity[2]) : 1;
+      if (!name || !Number.isSafeInteger(qty) || qty < 1) continue;
+      const qualified = catalog.filter(c => normalize(c.brand + ' ' + c.product) === name);
+      const candidates = qualified.length ? qualified : catalog.filter(c =>
+        [c.product, c.surgRecord, c.abbrev].some(label => normalize(label) === name));
+      const distinct = new Map();
+      for (const c of candidates) {
+        const key = JSON.stringify([c.brand, c.product]);
+        const prior = distinct.get(key);
+        if (!prior || (c.hospital === area && !prior.hospital)) distinct.set(key, c);
+      }
+      if (distinct.size !== 1) continue;
+      const [[key, product]] = distinct;
+      const current = selections.get(key);
+      selections.set(key, { ...product, qty: qty + (current?.qty || 0) });
+    }
+    return [...selections.values()];
+  },
+  _implantLabel(item, products) {
+    return products.some(c => c.product === item.product && c.brand !== item.brand)
+      ? item.brand + ' ' + item.product : item.product;
+  },
   _parseImplantToSelections(implant, boneCats) {
     if (!implant) return [];
     return implant.split(' , ').map(s=>s.trim()).filter(Boolean).map(part => {
@@ -2559,10 +2564,7 @@ const APP = {
     map.forEach((qty, key) => {
       const sep = key.indexOf('|');
       const brand = key.substring(0, sep), product = key.substring(sep+1);
-      const cat = brand
-        ? allProds.find(c => c.brand === brand && c.product === product)
-        : allProds.find(c => c.product === product);
-      const label = product;
+      const label = brand ? this._implantLabel({ brand, product }, allProds) : product;
       parts.push(qty > 1 ? label+'*'+qty : label);
     });
     const inp = document.getElementById(wrapId.replace('-wrap','-val'));
@@ -2721,6 +2723,7 @@ const APP = {
   },
   closeModal(id){
     document.getElementById(id).classList.remove('open');
+    if (id === 'modal-op') this._scanEditIdx = null;
     // 若詳細卡片是從搜尋開啟的，關閉後自動重開搜尋
     if(id==='modal-detail' && this._detailFromSearch) {
       this._detailFromSearch = false;
