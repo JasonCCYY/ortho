@@ -617,6 +617,14 @@ const APP = {
       if(!data.ok) throw new Error(data.error || '解析失敗');
 
       const patients = data.patients;
+      for (const p of patients) {
+        const noteParts = String(p.note || '').split(/[;；,，、\n]+/);
+        const recognized = this._matchScanImplants(p.implants, products, '中正');
+        const fromNote = this._matchScanImplants(noteParts, products, '中正');
+        const merged = new Map(recognized.map(c => [JSON.stringify([c.brand, c.product]), c]));
+        for (const c of fromNote) merged.set(JSON.stringify([c.brand, c.product]), c);
+        p.implants = [...merged.values()].map(c => c.brand + ' ' + c.product + (c.qty > 1 ? ' ×' + c.qty : ''));
+      }
       if(!patients.length) {
         document.getElementById('scan-status').textContent = '找不到黃色框資料，請確認圖片';
         return;
@@ -2476,8 +2484,9 @@ const APP = {
     const selections = new Map();
     for (const implant of Array.isArray(implants) ? implants : []) {
       if (typeof implant !== 'string') continue;
-      const quantity = implant.match(/^(.+?)\s*[×*]\s*(\d+)$/);
-      const name = normalize(quantity ? quantity[1] : implant);
+      const text = implant.normalize('NFKC').trim().replace(/^[*;:,\s]+/, '');
+      const quantity = text.match(/^(.+?)\s*(?:[×*]|\s+x)\s*(\d+)$/i);
+      const name = normalize(quantity ? quantity[1] : text);
       const qty = quantity ? Number(quantity[2]) : 1;
       if (!name || !Number.isSafeInteger(qty) || qty < 1) continue;
       const qualified = catalog.filter(c => normalize(c.brand + ' ' + c.product) === name);
