@@ -3,9 +3,9 @@ const APP = {
   tab: 'surgery',
   subMat: 'matRec',
   subSx: 'sxList',
-  // material slide index: 0=matRec,1=selfPay,2=opCode,3=codeRec,4=estimate
-  matSlideIdx: 0,
-  MAT_SUBS: ['matRec','selfPay','opCode','codeRec','estimate'],
+  // material slide index: 0=selfPay,1=opCode,2=matRec,3=codeRec,4=estimate
+  matSlideIdx: 2,
+  MAT_SUBS: ['selfPay','opCode','matRec','codeRec','estimate'],
   CLINIC_REC_ORDER: ['外泌體','PRP','增生','玻尿酸','震波','門診護具'],
   CLINIC_SELF_ORDER: ['門診護具','外泌體','PRP','增生','玻尿酸','震波'],
   _swipeStartX: 0, _swipeStartY: 0, _swiping: false,

@@ -58,9 +58,9 @@
 
   <!-- Material sub-tabs -->
   <div class="sub-tabs" id="sub-mat" style="display:none">
-    <button class="sub-tab active" data-sub="matRec">醫材記錄</button>
     <button class="sub-tab" data-sub="selfPay">自費醫材</button>
     <button class="sub-tab" data-sub="opCode">代碼</button>
+    <button class="sub-tab active" data-sub="matRec">醫材記錄</button>
     <button class="sub-tab" data-sub="codeRec">代碼紀錄</button>
     <button class="sub-tab" data-sub="estimate">預估</button>
   </div>
@@ -74,22 +74,7 @@
       <div id="mat-swipe-container">
         <div id="mat-swipe-inner">
 
-          <!-- Slide 0: 醫材記錄 -->
-          <div class="mat-slide" id="pg-mat-rec">
-            <div class="list-content">
-              <div class="col-hdr-row">
-                <span class="dot-ph"></span>
-                <span class="th col-brand">廠牌</span>
-                <span class="th col-product">產品</span>
-                <span class="th col-qty" style="text-align:center">數量</span>
-                <span class="th col-price" style="text-align:right">單價</span>
-                <span style="width:32px;flex-shrink:0"></span>
-              </div>
-              <div id="mat-rec-list"></div>
-            </div>
-          </div>
-
-          <!-- Slide 1: 自費醫材 -->
+          <!-- Slide 0: 自費醫材 -->
           <div class="mat-slide" id="pg-selfpay">
             <div class="list-content">
               <div class="col-hdr-row">
@@ -103,7 +88,7 @@
             </div>
           </div>
 
-          <!-- Slide 2: 代碼 -->
+          <!-- Slide 1: 代碼 -->
           <div class="mat-slide" id="pg-opcode">
             <div class="list-content">
               <div class="col-hdr-row">
@@ -113,6 +98,21 @@
                 <span class="th col-price" style="text-align:right">單價</span>
               </div>
               <div id="opcode-list"></div>
+            </div>
+          </div>
+
+          <!-- Slide 2: 醫材記錄 -->
+          <div class="mat-slide" id="pg-mat-rec">
+            <div class="list-content">
+              <div class="col-hdr-row">
+                <span class="dot-ph"></span>
+                <span class="th col-brand">廠牌</span>
+                <span class="th col-product">產品</span>
+                <span class="th col-qty" style="text-align:center">數量</span>
+                <span class="th col-price" style="text-align:right">單價</span>
+                <span style="width:32px;flex-shrink:0"></span>
+              </div>
+              <div id="mat-rec-list"></div>
             </div>
           </div>
 
